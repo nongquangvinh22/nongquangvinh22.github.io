@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101b2b">
+  <meta name="description" content="Trò chơi trắc nghiệm 3.000 lượt câu hỏi lịch sử Việt Nam dạng ABCD.">
+  <title>Lịch Sử Việt Nam – Thử thách ABCD</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="question-bank.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand-mark">SỬ</div>
+      <div>
+        <p class="eyebrow">TRÒ CHƠI KIẾN THỨC</p>
+        <h1>Lịch Sử Việt Nam</h1>
+      </div>
+      <div class="top-pill">3.000 LƯỢT ABCD</div>
+    </header>
+
+    <main class="layout">
+      <section class="main-column">
+        <div class="hero">
+          <div class="hero-kicker">HÀNH TRÌNH QUA CÁC THỜI KỲ</div>
+          <h2>Thử thách hiểu biết<br><span>lịch sử dân tộc</span></h2>
+          <p>Chọn đáp án A, B, C hoặc D. Mỗi câu có thời gian trả lời và phần giải thích sau khi chốt.</p>
+          <div class="hero-line"><span></span><span></span><span></span></div>
+        </div>
+
+        <div class="toolbar">
+          <label>Chủ đề
+            <select id="topicFilter"><option value="Tất cả">Tất cả chủ đề</option></select>
+          </label>
+          <label>Độ khó
+            <select id="difficultyFilter">
+              <option value="0">Mọi mức độ</option>
+              <option value="1">Dễ</option>
+              <option value="2">Vừa</option>
+              <option value="3">Khó</option>
+            </select>
+          </label>
+          <label>Thời gian
+            <select id="timeLimit">
+              <option value="10">10 giây</option>
+              <option value="15" selected>15 giây</option>
+              <option value="20">20 giây</option>
+              <option value="30">30 giây</option>
+            </select>
+          </label>
+        </div>
+
+        <section class="question-card">
+          <div class="question-meta">
+            <span id="questionTopic">CHỦ ĐỀ LỊCH SỬ</span>
+            <span id="questionCounter">CHƯA BẮT ĐẦU</span>
+          </div>
+          <div class="timer-row">
+            <div class="timer-track"><div id="timerBar"></div></div>
+            <strong id="timerText">15</strong>
+          </div>
+          <div class="question-body">
+            <div class="question-label">CÂU HỎI</div>
+            <h2 id="questionText">Nhấn “Bắt đầu” để chọn câu hỏi đầu tiên.</h2>
+          </div>
+          <div id="options" class="options-grid"></div>
+          <div id="answerMessage" class="answer-message" aria-live="polite">Sẵn sàng?</div>
+          <div class="question-actions">
+            <button id="startBtn" class="btn btn-primary">Bắt đầu</button>
+            <button id="revealBtn" class="btn btn-secondary" disabled>Hiện đáp án</button>
+            <button id="nextBtn" class="btn btn-ghost" disabled>Câu tiếp theo →</button>
+          </div>
+          <div id="explanation" class="explanation" hidden></div>
+        </section>
+
+        <section class="simulator">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">BẢNG THỬ TƯƠNG TÁC</p>
+              <h3>Mô phỏng bình luận người chơi</h3>
+            </div>
+            <span class="demo-tag">LOCAL DEMO</span>
+          </div>
+          <p class="sim-note">Nhập tên và bình luận A/B/C/D để thử hệ thống chấm điểm, ghi nhận người trả lời và tạo phản hồi tự động trên màn hình này. Đây chỉ là mô phỏng cục bộ, không đọc bình luận từ TikTok.</p>
+          <form id="commentForm" class="comment-form">
+            <input id="viewerName" maxlength="24" placeholder="Tên người chơi" value="Khách xem live" required>
+            <input id="viewerComment" maxlength="30" placeholder="Bình luận: A, B, C hoặc D" autocomplete="off" required>
+            <button class="btn btn-primary" type="submit">Gửi bình luận</button>
+          </form>
+          <div class="comment-columns">
+            <div>
+              <h4>Phản hồi hệ thống</h4>
+              <div id="commentLog" class="comment-log"><p class="empty">Chưa có bình luận mô phỏng.</p></div>
+            </div>
+            <div>
+              <h4>Người chơi gần đây</h4>
+              <div id="miniLeaderboard" class="mini-board"><p class="empty">Chưa có điểm.</p></div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <aside class="side-column">
+        <section class="score-card">
+          <p class="eyebrow">BẢNG XẾP HẠNG</p>
+          <h3>Top người chơi</h3>
+          <div class="score-summary">
+            <div><strong id="playerCount">0</strong><span>Người chơi</span></div>
+            <div><strong id="totalCorrect">0</strong><span>Lượt đúng</span></div>
+          </div>
+          <ol id="leaderboard" class="leaderboard"><li class="empty">Bảng điểm sẽ xuất hiện tại đây.</li></ol>
+          <button id="resetBtn" class="btn btn-reset">Xóa bảng điểm</button>
+        </section>
+
+        <section class="rules-card">
+          <p class="eyebrow">CÁCH CHƠI</p>
+          <h3>Luật đơn giản</h3>
+          <div class="rule"><span>01</span><p>Đọc câu hỏi và chọn một trong bốn đáp án.</p></div>
+          <div class="rule"><span>02</span><p>Gửi bình luận mô phỏng bằng một chữ A, B, C hoặc D.</p></div>
+          <div class="rule"><span>03</span><p>Đáp án đúng được cộng 10 điểm cho người chơi.</p></div>
+          <div class="rule"><span>04</span><p>Nhấn hiện đáp án để xem giải thích và chuyển câu.</p></div>
+        </section>
+
+        <section class="bank-card">
+          <p class="eyebrow">NGÂN HÀNG CÂU HỎI</p>
+          <strong>3.000</strong>
+          <span>lượt câu hỏi ABCD</span>
+          <div class="bank-progress"><div></div></div>
+          <p class="bank-foot">100 câu nền lịch sử + 25 mốc lịch sử hiện đại, mỗi dữ kiện có nhiều biến thể cách dẫn và thứ tự lựa chọn.</p>
+        </section>
+      </aside>
+    </main>
+
+    <footer>
+      <span>LỊCH SỬ VIỆT NAM · ABCD</span>
+      <span>Phiên bản mô phỏng ngoại tuyến · Không kết nối TikTok</span>
+    </footer>
+  </div>
+</body>
+</html>
