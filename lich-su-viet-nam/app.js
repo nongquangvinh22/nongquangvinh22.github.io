@@ -41,11 +41,11 @@
     stopTimer();state.time=Number(els.time.value);setTime(state.time);
     state.timer=setInterval(()=>{
       state.time--;setTime(state.time);
-      if(state.time<=0){stopTimer();els.message.textContent="Hết giờ! Có thể hiện đáp án hoặc sang câu tiếp theo.";els.message.className="answer-message bad";}
+      if(state.time<=0){stopTimer();state.expired=true;els.message.textContent="Hết giờ! Có thể hiện đáp án hoặc sang câu tiếp theo.";els.message.className="answer-message bad";}
     },1000);
   }
   function loadNext(){
-    stopTimer();state.revealed=false;
+    stopTimer();state.revealed=false;state.expired=false;
     const candidates=eligible();
     if(!candidates.length){els.question.textContent="Không có câu hỏi phù hợp bộ lọc.";return;}
     if(!state.queue.length || state.queue.some(id=>!candidates.some(q=>q.id===id))){
@@ -91,6 +91,7 @@
     const user=(name||"Khách").trim().slice(0,24)||"Khách";
     const value=(raw||"").trim().toUpperCase();
     if(!state.current){addLog(user,raw,"Hãy nhấn Bắt đầu trước nhé.","bad");return;}
+    if(state.revealed||state.expired){addLog(user,value,"Câu hỏi đã chốt hoặc hết giờ; chờ câu tiếp theo nhé.","bad");return;}
     if(!/^[ABCD]$/.test(value)){addLog(user,raw,"Bình luận mô phỏng chỉ nhận A, B, C hoặc D.","bad");return;}
     const key=state.current.id+"|"+user.toLocaleLowerCase("vi");
     if(state.seen.has(key)){addLog(user,value,"Bạn đã trả lời câu này rồi.","bad");return;}
