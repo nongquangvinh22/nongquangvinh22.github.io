@@ -201,7 +201,7 @@ class MainActivity : ComponentActivity() {
             visibility = View.GONE
         }
         sendCard.addView(progress, matchWidth().apply { height = dp(7) })
-        statusText = text("Mỗi link chia sẻ có hiệu lực 24 giờ sau khi tải lên hoàn tất.", 12f, Color.rgb(100, 116, 139), false).apply {
+        statusText = text("Tổng dung lượng gửi tối đa 10 GB/ngày. Mỗi tệp tự hết hạn sau 24 giờ và được hệ thống tự xóa.", 12f, Color.rgb(100, 116, 139), false).apply {
             setPadding(0, dp(10), 0, 0)
         }
         sendCard.addView(statusText)
