@@ -32,7 +32,7 @@ jobs:
           git add NQV-Share
           if ! git diff --cached --quiet; then
             git commit -m "Add NQV Share source code"
-            git push
+            git push || echo "::warning::GitHub could not persist the extracted source folder; continuing with the APK build."
           fi
 
       - name: Set up JDK 17
