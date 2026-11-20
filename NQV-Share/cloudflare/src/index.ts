@@ -24,8 +24,7 @@ type UploadRow = {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PENDING_TTL_MS = 60 * 60 * 1000;
 const MAX_FILE_BYTES = 5 * 1024 * 1024 * 1024;
-const DAILY_UPLOAD_LIMIT = 10;
-const DAILY_BYTE_LIMIT = 10 * 1024 * 1024 * 1024;
+Remove count limitconst DAILY_BYTE_LIMIT = 10 * 1024 * 1024 * 1024;
 const UPLOAD_URL_SECONDS = 15 * 60;
 const DOWNLOAD_URL_SECONDS = 2 * 60;
 
@@ -89,26 +88,20 @@ async function signObjectUrl(env: Env, key: string, expiresSeconds: number, meth
   return signed.url.toString();
 }
 
-async function clientHash(request: Request, env: Env): Promise<string> {
-  // Store only a one-way hash of the client IP; never persist the raw address.
-  const ip = request.headers.get("CF-Connecting-IP") || "local-development";
-  const data = new TextEncoder().encode(env.ACCOUNT_ID + ":" + ip);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-async function reserveDailyQuota(env: Env, ipHash: string, bytes: number): Promise<boolean> {
-  const dayKey = new Date().toISOString().slice(0, 10);
+async function reserveDailyQuota(env: Env, bytes: number): Promise<boolean> {
+  // This is a personal test service: keep one shared 10 GiB daily pool for the owner,
+  // regardless of network changes or the number of files uploaded.
+  const ownerKey = "personal-owner";
+  const dayKey = new Date().toISOString().slice(0, 10); // UTC calendar day
   const sql = "INSERT INTO daily_usage (ip_hash, day_key, file_count, bytes_reserved) " +
     "VALUES (?, ?, 1, ?) " +
     "ON CONFLICT(ip_hash, day_key) DO UPDATE SET " +
     "file_count = daily_usage.file_count + 1, " +
     "bytes_reserved = daily_usage.bytes_reserved + excluded.bytes_reserved " +
-    "WHERE daily_usage.file_count < ? " +
-    "AND daily_usage.bytes_reserved + excluded.bytes_reserved <= ? " +
+    "WHERE daily_usage.bytes_reserved + excluded.bytes_reserved <= ? " +
     "RETURNING file_count";
   const reserved = await env.DB.prepare(sql)
-    .bind(ipHash, dayKey, bytes, DAILY_UPLOAD_LIMIT, DAILY_BYTE_LIMIT)
+    .bind(ownerKey, dayKey, bytes, DAILY_BYTE_LIMIT)
     .first<{ file_count: number }>();
   return Boolean(reserved);
 }
@@ -148,7 +141,7 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   if (request.method === "GET" && (path === "/" || path === "/health")) {
     return path === "/health"
-      ? json({ ok: true, service: "NQV Share", linkLifetimeHours: 24, maxFileBytes: MAX_FILE_BYTES, dailyFilesPerIp: DAILY_UPLOAD_LIMIT, dailyBytesPerIp: DAILY_BYTE_LIMIT })
+      ? json({ ok: true, service: "NQV Share", linkLifetimeHours: 24, maxFileBytes: MAX_FILE_BYTES, dailyBytesTotal: DAILY_BYTE_LIMIT, dailyQuotaReset: "00:00 UTC" })
       : new Response("NQV Share API is running. Open a share link or use the Android app.", { headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
 
@@ -161,10 +154,9 @@ async function route(request: Request, env: Env): Promise<Response> {
     if (!contentType || contentType.length > 120) return json({ error: "Không nhận diện được định dạng tệp." }, 415);
     if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > MAX_FILE_BYTES) return json({ error: "Dung lượng phải từ 1 byte đến 5 GB trong phiên bản hiện tại." }, 413);
 
-    const ipHash = await clientHash(request, env);
-    const allowed = await reserveDailyQuota(env, ipHash, sizeBytes);
+    const allowed = await reserveDailyQuota(env, sizeBytes);
     if (!allowed) {
-      return json({ error: "Thiết bị này đã đạt giới hạn trong ngày: tối đa 10 lượt gửi và 10 GB/ngày. Vui lòng thử lại vào ngày mai." }, 429);
+      return json({ error: "Đã sử dụng hết hạn mức dung lượng 10 GB/ngày của NQV Share. Hạn mức được làm mới lúc 00:00 UTC." }, 429);
     }
 
     const id = randomToken();
