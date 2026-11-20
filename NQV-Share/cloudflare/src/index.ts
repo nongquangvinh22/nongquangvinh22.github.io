@@ -24,7 +24,7 @@ type UploadRow = {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PENDING_TTL_MS = 60 * 60 * 1000;
 const MAX_FILE_BYTES = 5 * 1024 * 1024 * 1024;
-Remove count limitconst DAILY_BYTE_LIMIT = 10 * 1024 * 1024 * 1024;
+Remove count limitconst DAILY_BYTE_LIMIT = 10_000_000_000;
 const UPLOAD_URL_SECONDS = 15 * 60;
 const DOWNLOAD_URL_SECONDS = 2 * 60;
 
