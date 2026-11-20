@@ -18,24 +18,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Reconstruct NQV Share project archive
+      - name: Verify NQV Share source files
         run: |
-          cat NQV-Share-project.zip.b64.0* | base64 --decode > NQV-Share-project.zip
+          test -d NQV-Share/android
+          test -f NQV-Share/android/app/build.gradle.kts
+          test -f NQV-Share/cloudflare/src/index.ts
           unzip -t NQV-Share-project.zip
-          mkdir -p /tmp/nqv-share
-          unzip -q NQV-Share-project.zip -d /tmp/nqv-share
-          test -d /tmp/nqv-share/NQV-Share/android
-          rm -rf NQV-Share
-          cp -a /tmp/nqv-share/NQV-Share ./NQV-Share
-          rm -rf NQV-Share/.github
-          git rm -f NQV-Share-project.zip.b64.* 
-          git add NQV-Share NQV-Share-project.zip
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if ! git diff --cached --quiet; then
-            git commit -m "Add NQV Share Android and Cloudflare source"
-            git push
-          fi
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
