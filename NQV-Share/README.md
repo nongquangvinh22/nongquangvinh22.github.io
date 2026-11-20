@@ -1,6 +1,6 @@
 # NQV Share
 
-Ứng dụng Android gửi ảnh/video nguyên bản lên Cloudflare R2, tạo link chia sẻ riêng có hiệu lực 24 giờ và mã QR để quét trên máy tính/điện thoại nhận.
+Ứng dụng Android chia sẻ ảnh, video, PDF, âm thanh và tài liệu nguyên bản lên Cloudflare R2, tạo link chia sẻ riêng có hiệu lực 24 giờ và mã QR để quét trên máy tính/điện thoại nhận.
 
 ## Cách hoạt động
 
@@ -10,7 +10,19 @@
 4. Người nhận mở link hoặc quét QR. Worker chuyển hướng tải xuống tới URL R2 ký sẵn ngắn hạn.
 5. Worker từ chối link ngay khi hết hạn; tác vụ Cron dọn object và metadata trong R2/D1 mỗi giờ.
 
-**Giới hạn phiên bản đầu:** một tệp tối đa 5 GB (PUT đơn, chưa có multipart/resume). Dùng mạng ổn định khi tải video lớn. Tệp không bị nén hay đổi nội dung.
+**Giới hạn hiện tại:** một tệp tối đa 5 GB (PUT đơn, chưa có multipart/resume). Dùng mạng ổn định khi tải tệp lớn. Dữ liệu được gửi nguyên bản, không nén hay chuyển mã.
+
+## Chức năng trong ứng dụng Android
+
+- Gửi ảnh, video, PDF, âm thanh và các định dạng tài liệu/tệp khác.
+- Tạo link riêng có hiệu lực 24 giờ và mã QR sau khi tải lên hoàn tất.
+- Sao chép, chia sẻ hoặc mở link ngay trong ứng dụng.
+- Nhận link từ ứng dụng khác qua bảng Chia sẻ Android, hoặc dán link để mở trên trình duyệt.
+- Lịch sử lưu cục bộ tối đa 20 lượt chia sẻ, có thao tác mở, sao chép và xóa khỏi lịch sử.
+- Kiểm tra trạng thái kết nối với Cloudflare Worker.
+- Dòng bản quyền Nông Quang Vinh hiển thị ở đầu và cuối giao diện.
+
+Lưu ý: lịch sử chỉ được lưu trên điện thoại tạo lượt chia sẻ. Nút bỏ mục trong lịch sử chỉ xóa mục khỏi ứng dụng, không xóa tệp đã tải lên máy chủ.
 
 ## 1. Triển khai Cloudflare Worker
 
@@ -80,9 +92,9 @@ Nếu tự build bằng Android Studio, mở thư mục `android`, cài Android 
 1. Mở NQV Share trên Android.
 2. Dán Worker URL vào ô địa chỉ máy chủ.
 3. Nhập đúng `APP_PASSWORD` đã lưu trên Worker.
-4. Bấm **CHỌN ẢNH / VIDEO** và chọn tệp.
+4. Bấm **CHỌN TỆP TỪ THIẾT BỊ** và chọn ảnh, video, PDF, âm thanh hoặc định dạng tệp khác.
 5. Chờ tiến trình tải hoàn tất. App sẽ hiện link, mã QR, nút sao chép và chia sẻ.
-6. Quét QR bằng máy nhận hoặc mở link trên máy tính. Trang nhận có xem trước ảnh/video và nút tải tệp gốc.
+6. Quét QR bằng máy nhận hoặc mở link trên máy tính. Trang nhận hỗ trợ xem trước ảnh, video, âm thanh và PDF (tùy khả năng của trình duyệt), cùng nút tải tệp gốc.
 
 Mỗi link hoạt động trong 24 giờ tính từ lúc tải lên hoàn tất. Hết thời gian, link trả về trạng thái hết hạn; Cron dọn tệp đã hết hạn mỗi giờ. Link là dạng bearer link: chỉ gửi cho người nhận dự kiến.
 
@@ -99,7 +111,7 @@ Mỗi link hoạt động trong 24 giờ tính từ lúc tải lên hoàn tất.
 
 - `android/`: ứng dụng Android Kotlin.
 - `cloudflare/`: Worker API, R2/D1 config, schema và CORS config.
-- `.github/workflows/build-apk.yml`: GitHub Actions build APK.
+- `.github/workflows/nqv-share-build.yml`: GitHub Actions build APK.
 
 ## Ghi chú kỹ thuật
 
