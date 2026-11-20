@@ -4,11 +4,11 @@
 
 ## Cách hoạt động
 
-1. Android app hỏi Worker lấy một URL PUT ký sẵn (có hiệu lực 15 phút).
+1. Ứng dụng gọi Worker công khai để lấy một URL PUT ký sẵn (có hiệu lực 15 phút); người cài app không cần nhập mật khẩu.
 2. Android tải trực tiếp các byte của tệp lên R2. Không nén, không đổi kích thước, không chuyển mã.
 3. Worker xác nhận kích thước đối tượng, sau đó cấp link ngẫu nhiên 128-bit hết hạn đúng 24 giờ.
 4. Người nhận mở link hoặc quét QR. Worker chuyển hướng tải xuống tới URL R2 ký sẵn ngắn hạn.
-5. Worker từ chối link ngay khi hết hạn; tác vụ Cron dọn object và metadata trong R2/D1 mỗi giờ.
+5. Worker từ chối link ngay khi hết hạn; Cron chạy mỗi phút để xóa object và metadata đã hết hạn khỏi R2/D1.
 
 **Giới hạn hiện tại:** một tệp tối đa 5 GB (PUT đơn, chưa có multipart/resume). Dùng mạng ổn định khi tải tệp lớn. Dữ liệu được gửi nguyên bản, không nén hay chuyển mã.
 
@@ -45,15 +45,17 @@ Sau đó khởi tạo bảng:
 
 ```powershell
 npx wrangler d1 execute nqv-share-db --remote --file=./migrations/0001_init.sql
+npx wrangler d1 execute nqv-share-db --remote --file=./migrations/0002_public_quota.sql
 ```
 
 Tạo R2 API token có quyền Object Read & Write cho bucket `nqv-share-files`. Dùng Access Key ID và Secret Access Key của token làm secrets cho Worker. Không đưa các giá trị này vào app hoặc GitHub.
 
 ```powershell
-npx wrangler secret put APP_PASSWORD
 npx wrangler secret put R2_ACCESS_KEY_ID
 npx wrangler secret put R2_SECRET_ACCESS_KEY
 ```
+
+`APP_PASSWORD` không còn cần cho thao tác gửi công khai trong ứng dụng. Nó chỉ là tùy chọn nếu chủ máy chủ sau này dùng endpoint xóa tệp quản trị.
 
 Khi lệnh hỏi giá trị, nhập một mật khẩu dài, riêng tư cho `APP_PASSWORD`, rồi nhập hai khóa R2 tương ứng.
 
@@ -96,16 +98,17 @@ Nếu tự build bằng Android Studio, mở thư mục `android`, cài Android 
 5. Chờ tiến trình tải hoàn tất. App sẽ hiện link, mã QR, nút sao chép và chia sẻ.
 6. Quét QR bằng máy nhận hoặc mở link trên máy tính. Trang nhận hỗ trợ xem trước ảnh, video, âm thanh và PDF (tùy khả năng của trình duyệt), cùng nút tải tệp gốc.
 
-Mỗi link hoạt động trong 24 giờ tính từ lúc tải lên hoàn tất. Hết thời gian, link trả về trạng thái hết hạn; Cron dọn tệp đã hết hạn mỗi giờ. Link là dạng bearer link: chỉ gửi cho người nhận dự kiến.
+Mỗi link hoạt động đúng 24 giờ tính từ lúc tải lên hoàn tất. Tại mốc hết hạn, Worker lập tức chặn xem trước/tải xuống. Cron chạy mỗi phút để xóa vật lý tệp và metadata hết hạn; thời điểm xóa thực tế là lần quét kế tiếp, thường trong khoảng một phút sau hạn (có thể trễ hơn nếu Cloudflare đang trì hoãn lịch chạy). Link là dạng bearer link: chỉ gửi cho người nhận dự kiến.
 
 ## Bảo mật
 
 - R2 bucket không bật public access.
 - R2 API credentials và `APP_PASSWORD` chỉ lưu trong Worker Secrets.
-- App chỉ giữ Worker URL trong preferences; mật khẩu không được lưu lâu dài.
+- App lưu Worker URL trong preferences; người dùng cuối không cần biết hoặc nhập R2 API credentials.
 - Upload được cấp URL PUT riêng cho một object, hết hạn sau 15 phút.
 - Link chia sẻ dùng token ngẫu nhiên 128-bit; download URL R2 chỉ tồn tại 2 phút.
 - Tệp chia sẻ không cần tài khoản người nhận, nên người có link có thể truy cập trong 24 giờ.
+- API gửi công khai có hạn mức mỗi IP: tối đa 10 lượt/10 GiB mỗi ngày UTC. Đây là hạn mức cơ bản, không thay thế hoàn toàn quy tắc chống bot/rate-limit ở Cloudflare.
 
 ## Cấu trúc
 
