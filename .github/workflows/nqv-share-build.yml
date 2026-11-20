@@ -3,8 +3,7 @@ name: NQV Share Android APK
 on:
   push:
     paths:
-      - "NQV-Share-project.zip"
-      - ".github/workflows/nqv-share-build.yml"
+      - "NQV-Share-project.zip.b64.06"
   workflow_dispatch:
 
 permissions:
@@ -19,20 +18,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Extract NQV Share source into repository
+      - name: Reconstruct NQV Share project archive
         run: |
+          cat NQV-Share-project.zip.b64.0* | base64 --decode > NQV-Share-project.zip
+          unzip -t NQV-Share-project.zip
           mkdir -p /tmp/nqv-share
           unzip -q NQV-Share-project.zip -d /tmp/nqv-share
-          test -d /tmp/nqv-share/NQV-Share
+          test -d /tmp/nqv-share/NQV-Share/android
           rm -rf NQV-Share
           cp -a /tmp/nqv-share/NQV-Share ./NQV-Share
           rm -rf NQV-Share/.github
+          git rm -f NQV-Share-project.zip.b64.* 
+          git add NQV-Share NQV-Share-project.zip
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add NQV-Share
           if ! git diff --cached --quiet; then
-            git commit -m "Add NQV Share source code"
-            git push || echo "::warning::GitHub could not persist the extracted source folder; continuing with the APK build."
+            git commit -m "Add NQV Share Android and Cloudflare source"
+            git push
           fi
 
       - name: Set up JDK 17
