@@ -1,0 +1,4 @@
+# For local wrangler dev only. Never commit real values.
+APP_PASSWORD=change-this-local-password
+R2_ACCESS_KEY_ID=replace-me
+R2_SECRET_ACCESS_KEY=replace-me

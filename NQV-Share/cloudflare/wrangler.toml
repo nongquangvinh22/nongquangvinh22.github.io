@@ -1,0 +1,19 @@
+name = "nqv-share"
+main = "src/index.ts"
+compatibility_date = "2026-11-20"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "nqv-share-files"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nqv-share-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[vars]
+ACCOUNT_ID = "REPLACE_WITH_CLOUDFLARE_ACCOUNT_ID"
+R2_BUCKET_NAME = "nqv-share-files"
+
+[triggers]
+crons = ["0 * * * *"]

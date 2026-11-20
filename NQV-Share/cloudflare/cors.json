@@ -1,0 +1,12 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev",
+      "http://localhost:8787"
+    ],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
