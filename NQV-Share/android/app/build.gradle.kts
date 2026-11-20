@@ -7,8 +7,13 @@ android {
     namespace = "com.nqv.share"
     compileSdk = 35
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "com.nqv.share"
+        buildConfigField("String", "WORKER_URL", "\"\"")
         minSdk = 26
         targetSdk = 35
         versionCode = 2
