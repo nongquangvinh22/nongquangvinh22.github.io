@@ -173,14 +173,14 @@ class MainActivity : ComponentActivity() {
         }
         settingsCard.addView(serverInput, matchWidth())
         settingsCard.addView(text(
-            if (BuildConfig.WORKER_URL.isNotBlank()) "Máy chủ đã được cài sẵn. Người nhận app không cần nhập mật khẩu."
+            if (BuildConfig.WORKER_URL.isNotBlank()) "Máy chủ đã được tích hợp sẵn. Người cài app có thể dùng ngay, không cần nhập địa chỉ hay mật khẩu."
             else "Sau khi Cloudflare được kết nối, địa chỉ máy chủ sẽ được tích hợp sẵn vào APK để mọi người dùng ngay.",
             12f, Color.rgb(100, 116, 139), false
         ).apply { setPadding(0, dp(8), 0, dp(2)) })
         settingsCard.addView(button("KIỂM TRA KẾT NỐI", Color.rgb(15, 118, 110)) { checkConnection() }, matchWidth().apply {
             topMargin = dp(10)
         })
-        content.addView(settingsCard)
+        if (BuildConfig.WORKER_URL.isBlank()) content.addView(settingsCard)
 
         // Upload section.
         val sendCard = card()
