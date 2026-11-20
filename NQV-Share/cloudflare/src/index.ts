@@ -7,7 +7,7 @@ interface Env {
   R2_BUCKET_NAME: string;
   R2_ACCESS_KEY_ID: string;
   R2_SECRET_ACCESS_KEY: string;
-  APP_PASSWORD: string;
+  APP_PASSWORD?: string;
 }
 
 type UploadRow = {
@@ -24,6 +24,8 @@ type UploadRow = {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PENDING_TTL_MS = 60 * 60 * 1000;
 const MAX_FILE_BYTES = 5 * 1024 * 1024 * 1024;
+const DAILY_UPLOAD_LIMIT = 10;
+const DAILY_BYTE_LIMIT = 10 * 1024 * 1024 * 1024;
 const UPLOAD_URL_SECONDS = 15 * 60;
 const DOWNLOAD_URL_SECONDS = 2 * 60;
 
@@ -87,6 +89,29 @@ async function signObjectUrl(env: Env, key: string, expiresSeconds: number, meth
   return signed.url.toString();
 }
 
+async function clientHash(request: Request, env: Env): Promise<string> {
+  // Store only a one-way hash of the client IP; never persist the raw address.
+  const ip = request.headers.get("CF-Connecting-IP") || "local-development";
+  const data = new TextEncoder().encode(env.ACCOUNT_ID + ":" + ip);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function reserveDailyQuota(env: Env, ipHash: string, bytes: number): Promise<boolean> {
+  const dayKey = new Date().toISOString().slice(0, 10);
+  const sql = "INSERT INTO daily_usage (ip_hash, day_key, file_count, bytes_reserved) " +
+    "VALUES (?, ?, 1, ?) " +
+    "ON CONFLICT(ip_hash, day_key) DO UPDATE SET " +
+    "file_count = daily_usage.file_count + 1, " +
+    "bytes_reserved = daily_usage.bytes_reserved + excluded.bytes_reserved " +
+    "WHERE daily_usage.file_count < ? " +
+    "AND daily_usage.bytes_reserved + excluded.bytes_reserved <= ? " +
+    "RETURNING file_count";
+  const reserved = await env.DB.prepare(sql)
+    .bind(ipHash, dayKey, bytes, DAILY_UPLOAD_LIMIT, DAILY_BYTE_LIMIT)
+    .first<{ file_count: number }>();
+  return Boolean(reserved);
+}
 async function getRow(env: Env, id: string): Promise<UploadRow | null> {
   return await env.DB.prepare("SELECT * FROM uploads WHERE id = ? LIMIT 1").bind(id).first<UploadRow>();
 }
@@ -123,12 +148,11 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   if (request.method === "GET" && (path === "/" || path === "/health")) {
     return path === "/health"
-      ? json({ ok: true, service: "NQV Share", linkLifetimeHours: 24 })
+      ? json({ ok: true, service: "NQV Share", linkLifetimeHours: 24, maxFileBytes: MAX_FILE_BYTES, dailyFilesPerIp: DAILY_UPLOAD_LIMIT, dailyBytesPerIp: DAILY_BYTE_LIMIT })
       : new Response("NQV Share API is running. Open a share link or use the Android app.", { headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
 
   if (request.method === "POST" && path === "/api/upload-url") {
-    if (!authorized(request, env)) return json({ error: "Mật khẩu gửi tệp không đúng." }, 401);
     let data: { fileName?: unknown; contentType?: unknown; sizeBytes?: unknown };
     try { data = await request.json(); } catch { return json({ error: "Dữ liệu gửi lên không hợp lệ." }, 400); }
     const fileName = cleanFileName(data.fileName);
@@ -136,6 +160,12 @@ async function route(request: Request, env: Env): Promise<Response> {
     const sizeBytes = Number(data.sizeBytes);
     if (!contentType || contentType.length > 120) return json({ error: "Không nhận diện được định dạng tệp." }, 415);
     if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > MAX_FILE_BYTES) return json({ error: "Dung lượng phải từ 1 byte đến 5 GB trong phiên bản hiện tại." }, 413);
+
+    const ipHash = await clientHash(request, env);
+    const allowed = await reserveDailyQuota(env, ipHash, sizeBytes);
+    if (!allowed) {
+      return json({ error: "Thiết bị này đã đạt giới hạn trong ngày: tối đa 10 lượt gửi và 10 GB/ngày. Vui lòng thử lại vào ngày mai." }, 429);
+    }
 
     const id = randomToken();
     const objectKey = `uploads/${id}`;
@@ -148,7 +178,6 @@ async function route(request: Request, env: Env): Promise<Response> {
   }
 
   if (request.method === "POST" && path === "/api/complete") {
-    if (!authorized(request, env)) return json({ error: "Mật khẩu gửi tệp không đúng." }, 401);
     let data: { uploadId?: unknown };
     try { data = await request.json(); } catch { return json({ error: "Dữ liệu gửi lên không hợp lệ." }, 400); }
     const id = typeof data.uploadId === "string" ? data.uploadId : "";
@@ -224,15 +253,21 @@ export default {
     const now = Date.now();
     const pendingCutoff = now - PENDING_TTL_MS;
     const due = await env.DB.prepare(
-      "SELECT id, object_key FROM uploads WHERE (status = 'ready' AND expires_at <= ?) OR (status = 'pending' AND created_at <= ?) LIMIT 100",
+      "SELECT id, object_key FROM uploads WHERE (status = 'ready' AND expires_at <= ?) OR (status = 'pending' AND created_at <= ?) LIMIT 500",
     ).bind(now, pendingCutoff).all<{ id: string; object_key: string }>();
-    for (const row of due.results || []) {
-      try {
-        await env.BUCKET.delete(row.object_key);
-        await env.DB.prepare("DELETE FROM uploads WHERE id = ?").bind(row.id).run();
-      } catch (error) {
-        console.error("Cleanup failed for upload", row.id, error);
-      }
+    const rows = due.results || [];
+    // Delete objects in small parallel batches to keep each scheduled run bounded.
+    for (let i = 0; i < rows.length; i += 25) {
+      await Promise.all(rows.slice(i, i + 25).map(async (row) => {
+        try {
+          await env.BUCKET.delete(row.object_key);
+          await env.DB.prepare("DELETE FROM uploads WHERE id = ?").bind(row.id).run();
+        } catch (error) {
+          console.error("Cleanup failed for upload", row.id, error);
+        }
+      }));
     }
+    const oldDay = new Date(now - 3 * DAY_MS).toISOString().slice(0, 10);
+    await env.DB.prepare("DELETE FROM daily_usage WHERE day_key < ?").bind(oldDay).run();
   },
 };
