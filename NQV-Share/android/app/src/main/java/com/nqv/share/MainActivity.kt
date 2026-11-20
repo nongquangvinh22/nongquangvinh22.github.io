@@ -2,6 +2,7 @@ package com.nqv.share
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -9,7 +10,10 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.view.Gravity
 import android.view.View
@@ -63,7 +67,6 @@ class MainActivity : ComponentActivity() {
     private val history = mutableListOf<ShareRecord>()
 
     private lateinit var serverInput: EditText
-    private lateinit var passwordInput: EditText
     private lateinit var chooseButton: Button
     private lateinit var progress: ProgressBar
     private lateinit var statusText: TextView
@@ -71,6 +74,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var resultBox: LinearLayout
     private lateinit var linkText: TextView
     private lateinit var qrImage: ImageView
+    private var currentQrBitmap: Bitmap? = null
     private lateinit var historyList: LinearLayout
     private lateinit var receiveInput: EditText
     private var currentShareUrl: String? = null
@@ -100,7 +104,10 @@ class MainActivity : ComponentActivity() {
         }
         val scroll = ScrollView(this).apply {
             isFillViewport = true
-            setBackgroundColor(Color.rgb(243, 247, 253))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.rgb(224, 239, 255), Color.rgb(247, 240, 255), Color.rgb(225, 250, 246))
+            )
             addView(content)
         }
         ViewCompat.setOnApplyWindowInsetsListener(scroll) { _, insets ->
@@ -122,10 +129,19 @@ class MainActivity : ComponentActivity() {
         header.addView(text("BẢN QUYỀN CỦA NÔNG QUANG VINH", 11f, Color.rgb(220, 232, 255), true).apply {
             letterSpacing = 0.07f
         })
-        header.addView(text("NQV SHARE", 29f, Color.WHITE, true).apply {
+        val logoRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        logoRow.addView(ImageView(this).apply {
+            setImageResource(R.drawable.nqv_logo)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = "Logo NQV Share"
+        }, LinearLayout.LayoutParams(dp(76), dp(76)).apply { marginEnd = dp(12) })
+        logoRow.addView(text("NQV SHARE", 29f, Color.WHITE, true).apply {
             letterSpacing = 0.16f
-            setPadding(0, dp(11), 0, dp(3))
         })
+        header.addView(logoRow)
         header.addView(text("Chia sẻ tệp gốc theo cách thật đơn giản", 14f, Color.rgb(235, 242, 255), false))
         val featureLine = text("ẢNH  •  VIDEO  •  PDF  •  TÀI LIỆU  •  ÂM THANH", 10f, Color.WHITE, true).apply {
             setPadding(dp(10), dp(8), dp(10), dp(8))
@@ -143,25 +159,26 @@ class MainActivity : ComponentActivity() {
             setPadding(0, dp(13), 0, dp(16))
         })
 
-        // Server settings and connection test.
+        // The Worker URL is bundled into public builds after the owner deploys Cloudflare.
+        // People who receive the APK do not need an upload password.
         val settingsCard = card()
-        settingsCard.addView(sectionTitle("Kết nối máy chủ"))
-        settingsCard.addView(text("Địa chỉ Cloudflare Worker", 13f, Color.rgb(71, 85, 105), true).apply {
+        settingsCard.addView(sectionTitle("Máy chủ chia sẻ"))
+        settingsCard.addView(text("Địa chỉ máy chủ NQV Share", 13f, Color.rgb(71, 85, 105), true).apply {
             setPadding(0, dp(12), 0, dp(5))
         })
-        serverInput = inputField("https://ten-worker.ten-tai-khoan.workers.dev").apply {
-            setText(getPreferences(Context.MODE_PRIVATE).getString("server", ""))
+        val savedServer = getPreferences(Context.MODE_PRIVATE).getString("server", "").orEmpty()
+        serverInput = inputField("https://nqv-share.ten-tai-khoan.workers.dev").apply {
+            setText(savedServer.ifBlank { BuildConfig.WORKER_URL })
+            isEnabled = BuildConfig.WORKER_URL.isBlank() || savedServer.isNotBlank()
         }
         settingsCard.addView(serverInput, matchWidth())
-        settingsCard.addView(text("Mật khẩu gửi tệp", 13f, Color.rgb(71, 85, 105), true).apply {
-            setPadding(0, dp(11), 0, dp(5))
-        })
-        passwordInput = inputField("Nhập APP_PASSWORD đã đặt trên Worker").apply {
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-        }
-        settingsCard.addView(passwordInput, matchWidth())
+        settingsCard.addView(text(
+            if (BuildConfig.WORKER_URL.isNotBlank()) "Máy chủ đã được cài sẵn. Người nhận app không cần nhập mật khẩu."
+            else "Sau khi Cloudflare được kết nối, địa chỉ máy chủ sẽ được tích hợp sẵn vào APK để mọi người dùng ngay.",
+            12f, Color.rgb(100, 116, 139), false
+        ).apply { setPadding(0, dp(8), 0, dp(2)) })
         settingsCard.addView(button("KIỂM TRA KẾT NỐI", Color.rgb(15, 118, 110)) { checkConnection() }, matchWidth().apply {
-            topMargin = dp(12)
+            topMargin = dp(10)
         })
         content.addView(settingsCard)
 
@@ -228,6 +245,9 @@ class MainActivity : ComponentActivity() {
         resultActions.addView(button("MỞ LINK", Color.rgb(71, 85, 105)) { openCurrentLink() },
             LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(5) })
         resultBox.addView(resultActions)
+        resultBox.addView(button("LƯU MÃ QR VÀO THƯ VIỆN ẢNH", Color.rgb(111, 55, 190)) { saveQrToGallery() }, matchWidth().apply {
+            topMargin = dp(10)
+        })
         content.addView(resultBox)
 
         // Receive section: supports pasted links and Android share-sheet input.
@@ -283,13 +303,8 @@ class MainActivity : ComponentActivity() {
 
     private fun openPicker() {
         val base = serverInput.text.toString().trim().trimEnd('/')
-        val password = passwordInput.text.toString()
         if (!base.startsWith("https://")) {
-            toast("Hãy nhập Worker URL bắt đầu bằng https://")
-            return
-        }
-        if (password.isBlank()) {
-            toast("Hãy nhập mật khẩu gửi tệp")
+            toast("Máy chủ chưa được cấu hình. Hãy nhập địa chỉ Worker HTTPS.")
             return
         }
         getPreferences(Context.MODE_PRIVATE).edit().putString("server", base).apply()
@@ -327,7 +342,10 @@ class MainActivity : ComponentActivity() {
 
     private fun startUpload(uri: Uri) {
         val server = serverInput.text.toString().trim().trimEnd('/')
-        val password = passwordInput.text.toString()
+        if (!server.startsWith("https://")) {
+            toast("Máy chủ chưa được kết nối. Hãy kiểm tra địa chỉ Worker.")
+            return
+        }
         val meta = queryFile(uri)
         val name = meta.first
         val size = meta.second
@@ -359,7 +377,6 @@ class MainActivity : ComponentActivity() {
                     .toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
                 val initRequest = Request.Builder()
                     .url("$server/api/upload-url")
-                    .header("Authorization", "Bearer $password")
                     .post(initBody)
                     .build()
                 val initJson = http.newCall(initRequest).execute().use { response ->
@@ -377,7 +394,7 @@ class MainActivity : ComponentActivity() {
                     override fun writeTo(sink: BufferedSink) {
                         val input = contentResolver.openInputStream(uri) ?: throw IOException("Không mở được tệp")
                         input.use { stream ->
-                            val buffer = ByteArray(64 * 1024)
+                            val buffer = ByteArray(256 * 1024)
                             var sent = 0L
                             var lastPercent = -1
                             while (true) {
@@ -408,7 +425,6 @@ class MainActivity : ComponentActivity() {
                     .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
                 val completeRequest = Request.Builder()
                     .url("$server/api/complete")
-                    .header("Authorization", "Bearer $password")
                     .post(completeBody)
                     .build()
                 val completed = http.newCall(completeRequest).execute().use { response ->
@@ -450,6 +466,7 @@ class MainActivity : ComponentActivity() {
             for (x in 0 until 560) for (y in 0 until 560) {
                 bitmap.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
             }
+            currentQrBitmap = bitmap
             qrImage.setImageBitmap(bitmap)
         } catch (_: Exception) {
             toast("Không tạo được mã QR")
@@ -457,6 +474,43 @@ class MainActivity : ComponentActivity() {
         resultBox.visibility = View.VISIBLE
         statusText.text = "Hoàn tất! Link có hiệu lực 24 giờ kể từ lúc tải lên xong."
         progress.progress = 100
+    }
+
+    private fun saveQrToGallery() {
+        val bitmap = currentQrBitmap
+        if (bitmap == null) {
+            toast("Chưa có mã QR để lưu")
+            return
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            toast("Tính năng lưu QR tự động cần Android 10 trở lên")
+            return
+        }
+        var savedUri: Uri? = null
+        try {
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "NQV-Share-QR-${System.currentTimeMillis()}.png")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/NQV Share")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: throw IOException("Không tạo được tệp ảnh QR")
+            savedUri = uri
+            val output = contentResolver.openOutputStream(uri)
+                ?: throw IOException("Không mở được thư mục ảnh")
+            output.use {
+                if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) {
+                    throw IOException("Không lưu được ảnh QR")
+                }
+            }
+            val complete = ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }
+            contentResolver.update(uri, complete, null, null)
+            toast("Đã lưu mã QR vào Ảnh > Pictures/NQV Share")
+        } catch (e: Exception) {
+            savedUri?.let { contentResolver.delete(it, null, null) }
+            toast("Lưu QR thất bại: ${e.message ?: "Lỗi không xác định"}")
+        }
     }
 
     private fun copyLink() {
