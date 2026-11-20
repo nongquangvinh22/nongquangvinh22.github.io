@@ -107,7 +107,7 @@ class MainActivity : ComponentActivity() {
         serverInput = EditText(this).apply {
             hint = "https://ten-worker.ten-tai-khoan.workers.dev"
             textSize = 14f
-            singleLine = true
+            setSingleLine(true)
             setText(getPreferences(Context.MODE_PRIVATE).getString("server", ""))
             setPadding(dp(12))
             setBackgroundColor(Color.rgb(244, 246, 250))
