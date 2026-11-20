@@ -92,7 +92,7 @@ async function reserveDailyQuota(env: Env, bytes: number): Promise<boolean> {
   // This is a personal test service: keep one shared 10 GiB daily pool for the owner,
   // regardless of network changes or the number of files uploaded.
   const ownerKey = "personal-owner";
-  const dayKey = new Date().toISOString().slice(0, 10); // UTC calendar day
+  const dayKey = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10); // Vietnam calendar day
   const sql = "INSERT INTO daily_usage (ip_hash, day_key, file_count, bytes_reserved) " +
     "VALUES (?, ?, 1, ?) " +
     "ON CONFLICT(ip_hash, day_key) DO UPDATE SET " +
@@ -141,7 +141,7 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   if (request.method === "GET" && (path === "/" || path === "/health")) {
     return path === "/health"
-      ? json({ ok: true, service: "NQV Share", linkLifetimeHours: 24, maxFileBytes: MAX_FILE_BYTES, dailyBytesTotal: DAILY_BYTE_LIMIT, dailyQuotaReset: "00:00 UTC" })
+      ? json({ ok: true, service: "NQV Share", linkLifetimeHours: 24, maxFileBytes: MAX_FILE_BYTES, dailyBytesTotal: DAILY_BYTE_LIMIT, dailyQuotaReset: "00:00 Asia/Ho_Chi_Minh" })
       : new Response("NQV Share API is running. Open a share link or use the Android app.", { headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
 
