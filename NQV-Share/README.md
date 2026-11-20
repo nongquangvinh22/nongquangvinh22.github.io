@@ -10,7 +10,7 @@
 4. Người nhận mở link hoặc quét QR. Worker chuyển hướng tải xuống tới URL R2 ký sẵn ngắn hạn.
 5. Worker từ chối link ngay khi hết hạn; Cron chạy mỗi phút để xóa object và metadata đã hết hạn khỏi R2/D1.
 
-**Hạn mức thử nghiệm cá nhân:** tổng dung lượng gửi tối đa 10 GB (10.000.000.000 byte) mỗi ngày UTC, không giới hạn số lượt gửi. Hạn mức là một mức dùng chung cho toàn bộ ứng dụng và được làm mới lúc 00:00 UTC. Do Worker hiện dùng một lần PUT (chưa hỗ trợ multipart/resume), mỗi tệp riêng lẻ vẫn tối đa 5 GiB. Dữ liệu được gửi nguyên bản, không nén hay chuyển mã.
+**Hạn mức thử nghiệm cá nhân:** tổng dung lượng gửi tối đa 10 GB (10.000.000.000 byte) mỗi ngày theo giờ Việt Nam (Asia/Ho_Chi_Minh), không giới hạn số lượt gửi. Hạn mức là một mức dùng chung cho toàn bộ ứng dụng và được làm mới lúc 00:00 theo giờ Việt Nam. Do Worker hiện dùng một lần PUT (chưa hỗ trợ multipart/resume), mỗi tệp riêng lẻ vẫn tối đa 5 GiB. Dữ liệu được gửi nguyên bản, không nén hay chuyển mã.
 
 ## Chức năng trong ứng dụng Android
 
@@ -107,7 +107,7 @@ Mỗi link hoạt động đúng 24 giờ tính từ lúc tải lên hoàn tất
 - Upload được cấp URL PUT riêng cho một object, hết hạn sau 15 phút.
 - Link chia sẻ dùng token ngẫu nhiên 128-bit; download URL R2 chỉ tồn tại 2 phút.
 - Tệp chia sẻ không cần tài khoản người nhận, nên người có link có thể truy cập trong 24 giờ.
-- API gửi công khai có hạn mức dung lượng tổng cộng 10 GB (10.000.000.000 byte) mỗi ngày UTC cho toàn bộ ứng dụng; không giới hạn số lượt gửi. Mỗi tệp vẫn tối đa 5 GiB do đang dùng một lần PUT.
+- API gửi công khai có hạn mức dung lượng tổng cộng 10 GB (10.000.000.000 byte) mỗi ngày theo giờ Việt Nam cho toàn bộ ứng dụng; không giới hạn số lượt gửi. Mỗi tệp vẫn tối đa 5 GiB do đang dùng một lần PUT.
 
 ## Cấu trúc
 
