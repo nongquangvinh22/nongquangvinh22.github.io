@@ -57,8 +57,6 @@ npx wrangler secret put R2_SECRET_ACCESS_KEY
 
 `APP_PASSWORD` không còn cần cho thao tác gửi công khai trong ứng dụng. Nó chỉ là tùy chọn nếu chủ máy chủ sau này dùng endpoint xóa tệp quản trị.
 
-Khi lệnh hỏi giá trị, nhập một mật khẩu dài, riêng tư cho `APP_PASSWORD`, rồi nhập hai khóa R2 tương ứng.
-
 Cấu hình CORS (cập nhật `AllowedOrigins` trong `cors.json` thành địa chỉ Worker thực tế nếu sau này dùng web upload):
 
 ```powershell
@@ -104,7 +102,7 @@ Mỗi link hoạt động đúng 24 giờ tính từ lúc tải lên hoàn tất
 ## Bảo mật
 
 - R2 bucket không bật public access.
-- R2 API credentials và `APP_PASSWORD` chỉ lưu trong Worker Secrets.
+- R2 API credentials chỉ được lưu trong Worker Secrets. `APP_PASSWORD` không bắt buộc cho gửi tệp; chỉ thiết lập nếu chủ máy chủ cần khóa endpoint xóa tệp quản trị.
 - App lưu Worker URL trong preferences; người dùng cuối không cần biết hoặc nhập R2 API credentials.
 - Upload được cấp URL PUT riêng cho một object, hết hạn sau 15 phút.
 - Link chia sẻ dùng token ngẫu nhiên 128-bit; download URL R2 chỉ tồn tại 2 phút.
