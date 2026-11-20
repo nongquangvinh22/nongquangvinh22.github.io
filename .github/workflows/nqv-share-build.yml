@@ -1,0 +1,66 @@
+name: NQV Share Android APK
+
+on:
+  push:
+    paths:
+      - "NQV-Share-project.zip"
+      - ".github/workflows/nqv-share-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract NQV Share source into repository
+        run: |
+          mkdir -p /tmp/nqv-share
+          unzip -q NQV-Share-project.zip -d /tmp/nqv-share
+          test -d /tmp/nqv-share/NQV-Share
+          rm -rf NQV-Share
+          cp -a /tmp/nqv-share/NQV-Share ./NQV-Share
+          rm -rf NQV-Share/.github
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add NQV-Share
+          if ! git diff --cached --quiet; then
+            git commit -m "Add NQV Share source code"
+            git push
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Build debug APK on GitHub
+        working-directory: NQV-Share/android
+        run: gradle assembleDebug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NQV-Share-debug-apk
+          path: NQV-Share/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
