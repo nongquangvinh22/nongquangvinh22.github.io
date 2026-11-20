@@ -256,16 +256,23 @@ export default {
       "SELECT id, object_key FROM uploads WHERE (status = 'ready' AND expires_at <= ?) OR (status = 'pending' AND created_at <= ?) LIMIT 500",
     ).bind(now, pendingCutoff).all<{ id: string; object_key: string }>();
     const rows = due.results || [];
-    // Delete objects in small parallel batches to keep each scheduled run bounded.
+    // Remove objects in small parallel batches, then delete their D1 rows in one statement.
     for (let i = 0; i < rows.length; i += 25) {
-      await Promise.all(rows.slice(i, i + 25).map(async (row) => {
+      const batch = rows.slice(i, i + 25);
+      const deletedIds = (await Promise.all(batch.map(async (row) => {
         try {
           await env.BUCKET.delete(row.object_key);
-          await env.DB.prepare("DELETE FROM uploads WHERE id = ?").bind(row.id).run();
+          return row.id;
         } catch (error) {
           console.error("Cleanup failed for upload", row.id, error);
+          return null;
         }
-      }));
+      }))).filter((id): id is string => id !== null);
+      if (deletedIds.length) {
+        const placeholders = deletedIds.map(() => "?").join(", ");
+        await env.DB.prepare("DELETE FROM uploads WHERE id IN (" + placeholders + ")")
+          .bind(...deletedIds).run();
+      }
     }
     const oldDay = new Date(now - 3 * DAY_MS).toISOString().slice(0, 10);
     await env.DB.prepare("DELETE FROM daily_usage WHERE day_key < ?").bind(oldDay).run();
