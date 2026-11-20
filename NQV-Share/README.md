@@ -10,7 +10,7 @@
 4. Người nhận mở link hoặc quét QR. Worker chuyển hướng tải xuống tới URL R2 ký sẵn ngắn hạn.
 5. Worker từ chối link ngay khi hết hạn; Cron chạy mỗi phút để xóa object và metadata đã hết hạn khỏi R2/D1.
 
-**Giới hạn hiện tại:** một tệp tối đa 5 GB (PUT đơn, chưa có multipart/resume). Dùng mạng ổn định khi tải tệp lớn. Dữ liệu được gửi nguyên bản, không nén hay chuyển mã.
+**Giới hạn hiện tại:** một tệp tối đa 5 GiB (PUT đơn, chưa có multipart/resume); mỗi IP tối đa 10 lượt gửi và tổng cộng 10 GiB mỗi ngày UTC. Giới hạn IP là biện pháp chống lạm dụng cơ bản; người dùng chung Wi-Fi hoặc NAT nhà mạng có thể dùng chung hạn mức. Dữ liệu được gửi nguyên bản, không nén hay chuyển mã.
 
 ## Chức năng trong ứng dụng Android
 
@@ -92,11 +92,12 @@ Nếu tự build bằng Android Studio, mở thư mục `android`, cài Android 
 ## 3. Sử dụng
 
 1. Mở NQV Share trên Android.
-2. Dán Worker URL vào ô địa chỉ máy chủ.
-3. Nhập đúng `APP_PASSWORD` đã lưu trên Worker.
-4. Bấm **CHỌN TỆP TỪ THIẾT BỊ** và chọn ảnh, video, PDF, âm thanh hoặc định dạng tệp khác.
-5. Chờ tiến trình tải hoàn tất. App sẽ hiện link, mã QR, nút sao chép và chia sẻ.
-6. Quét QR bằng máy nhận hoặc mở link trên máy tính. Trang nhận hỗ trợ xem trước ảnh, video, âm thanh và PDF (tùy khả năng của trình duyệt), cùng nút tải tệp gốc.
+2. Trong bản hiện tại, dán Worker URL vào ô máy chủ và bấm **KIỂM TRA KẾT NỐI**. Sau khi chủ dự án triển khai Worker, hãy tích hợp địa chỉ đó vào `WORKER_URL` trong `android/app/build.gradle.kts` rồi build APK phát hành. Khi đó mọi người cài app có thể dùng ngay mà không cần nhập địa chỉ máy chủ.
+3. Bấm **CHỌN TỆP TỪ THIẾT BỊ** và chọn ảnh, video, PDF, âm thanh hoặc định dạng tệp khác.
+4. Chờ tiến trình tải hoàn tất. App hiển thị link, mã QR và các nút sao chép, chia sẻ, mở link, lưu QR vào thư viện ảnh.
+5. Người nhận không cần cài app hoặc nhập mật khẩu; chỉ cần quét QR hoặc mở link trong trình duyệt. Trang nhận hỗ trợ xem trước ảnh, video, âm thanh và PDF (tùy khả năng của trình duyệt), đồng thời có nút tải tệp gốc.
+
+Lịch sử chỉ được lưu trên từng điện thoại. Bỏ một mục khỏi lịch sử không xóa tệp trên máy chủ.
 
 Mỗi link hoạt động đúng 24 giờ tính từ lúc tải lên hoàn tất. Tại mốc hết hạn, Worker lập tức chặn xem trước/tải xuống. Cron chạy mỗi phút để xóa vật lý tệp và metadata hết hạn; thời điểm xóa thực tế là lần quét kế tiếp, thường trong khoảng một phút sau hạn (có thể trễ hơn nếu Cloudflare đang trì hoãn lịch chạy). Link là dạng bearer link: chỉ gửi cho người nhận dự kiến.
 
