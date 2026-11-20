@@ -3,7 +3,7 @@ name: NQV Share Android APK
 on:
   push:
     paths:
-      - "NQV-Share-project.zip.b64.05.4"
+      - "NQV-Share-project.zip.b64.05.4c"
   workflow_dispatch:
 
 permissions:
