@@ -19,13 +19,16 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Reconstruct Android project
+      - name: Reconstruct and prepare Android project
         shell: bash
         run: |
           cat projects/nqv-vivo-guard-source-*.b64 | base64 --decode > /tmp/nqv-vivo-guard.tar.xz
           mkdir -p projects
           tar -xJf /tmp/nqv-vivo-guard.tar.xz -C projects
-          cp /tmp/nqv-vivo-guard.tar.xz projects/NQV-Vivo-Guard-source.tar.xz
+          # Kotlin TextView exposes this setter as isSingleLine.
+          sed -i 's/^[[:space:]]*singleLine = true/            isSingleLine = true/' projects/nqv-vivo-guard/app/src/main/java/com/nqv/vivoguard/MainActivity.kt
+          tar -cJf /tmp/nqv-vivo-guard-patched.tar.xz -C projects nqv-vivo-guard
+          cp /tmp/nqv-vivo-guard-patched.tar.xz projects/NQV-Vivo-Guard-source.tar.xz
           test -f projects/nqv-vivo-guard/app/src/main/AndroidManifest.xml
 
       - name: Set up JDK 17
