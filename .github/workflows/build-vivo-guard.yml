@@ -1,0 +1,60 @@
+name: Build NQV Vivo Guard APK
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/build-vivo-guard.yml'
+      - 'projects/nqv-vivo-guard-source-*.b64'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Compile debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Reconstruct Android project
+        shell: bash
+        run: |
+          cat projects/nqv-vivo-guard-source-*.b64 | base64 --decode > /tmp/nqv-vivo-guard.tar.xz
+          mkdir -p projects
+          tar -xJf /tmp/nqv-vivo-guard.tar.xz -C projects
+          cp /tmp/nqv-vivo-guard.tar.xz projects/NQV-Vivo-Guard-source.tar.xz
+          test -f projects/nqv-vivo-guard/app/src/main/AndroidManifest.xml
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Assemble debug APK
+        working-directory: projects/nqv-vivo-guard
+        run: gradle --no-daemon assembleDebug
+
+      - name: Upload APK and source
+        uses: actions/upload-artifact@v4
+        with:
+          name: NQV-Vivo-Guard-apk-and-source
+          path: |
+            projects/nqv-vivo-guard/app/build/outputs/apk/debug/app-debug.apk
+            projects/NQV-Vivo-Guard-source.tar.xz
+          if-no-files-found: error
+          retention-days: 30
