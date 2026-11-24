@@ -98,6 +98,45 @@ jobs:
           git -C MNN checkout --detach FETCH_HEAD
           git -C MNN submodule update --init --recursive --depth 1
 
+      - name: Disable crashing Diffusion resize-cache path on Android
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path("MNN/transformers/diffusion/engine/src/stable_diffusion.cpp")
+          text = source.read_text()
+          start_marker = "std::vector<VARP> StableDiffusion::forwardWithResizeCache(int index, const std::vector<VARP>& inputs) {"
+          end_marker = "\\nVARP StableDiffusion::text_encoder"
+
+          if text.count(start_marker) != 1:
+              raise SystemExit("Expected exactly one StableDiffusion::forwardWithResizeCache implementation")
+          start = text.index(start_marker)
+          end = text.find(end_marker, start)
+          if end < 0:
+              raise SystemExit("Could not find text_encoder after forwardWithResizeCache")
+
+          replacement = """std::vector<VARP> StableDiffusion::forwardWithResizeCache(int index, const std::vector<VARP>& inputs) {
+              if (index < 0 || index >= mModules.size() || !mModules[index]) {
+                  MNN_ERROR("Invalid diffusion module index: %d\\n", index);
+                  return {};
+              }
+              // Android workaround: bypass MNN Session_Resize_Check/Fix.
+              // The Build 7 crash log showed a null dereference in Session::fixResizeCache
+              // while StableDiffusion::load() was preparing the first module.
+              return mModules[index]->onForward(inputs);
+          }
+          """
+
+          patched = text[:start] + replacement + text[end:]
+          if patched == text:
+              raise SystemExit("Diffusion resize-cache workaround did not modify the source")
+          if "traceOrOptimize(MNN::Interpreter::Session_Resize_Fix)" in patched:
+              raise SystemExit("Resize-Fix call remains in StableDiffusion source")
+          source.write_text(patched)
+          print("Applied Android Diffusion resize-cache workaround:", source)
+          PY
+
       - name: Build MNN Android arm64 with Diffusion, CLIP tokenizer and OpenCL
         shell: bash
         run: |
