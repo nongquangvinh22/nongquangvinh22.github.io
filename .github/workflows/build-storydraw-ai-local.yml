@@ -67,7 +67,7 @@ jobs:
           from pathlib import Path
           import re
           cpp = Path("projects/storydraw-ai-local/app/src/main/cpp/diffusion_jni.cpp")
-          cpp.write_text(re.sub(r"\\bSession\\b", "StoryDrawSession", cpp.read_text()))
+          cpp.write_text(cpp.read_text().replace("Session", "StoryDrawSession"))
           # Use Android's documented TTS voice-data installer action.
           kt = Path("projects/storydraw-ai-local/app/src/main/java/com/nqv/storydraw/MainActivity.kt")
           kt.write_text(kt.read_text().replace(
