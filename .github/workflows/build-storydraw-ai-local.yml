@@ -107,7 +107,7 @@ jobs:
           source = Path("MNN/transformers/diffusion/engine/src/stable_diffusion.cpp")
           text = source.read_text()
           start_marker = "std::vector<VARP> StableDiffusion::forwardWithResizeCache(int index, const std::vector<VARP>& inputs) {"
-          end_marker = "\\nVARP StableDiffusion::text_encoder"
+          end_marker = "\nVARP StableDiffusion::text_encoder"
 
           if text.count(start_marker) != 1:
               raise SystemExit("Expected exactly one StableDiffusion::forwardWithResizeCache implementation")
