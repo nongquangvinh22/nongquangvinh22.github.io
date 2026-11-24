@@ -1,136 +1,164 @@
 name: Build StoryDraw AI Local Android APK
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
     paths:
       - '.github/workflows/build-storydraw-ai-local.yml'
-      - 'projects/storydraw-ai-local-source-*.b64'
-  workflow_dispatch:
+      - 'projects/storydraw-ai-local-source-0*.b64'
 
 permissions:
   contents: write
 
 jobs:
   build:
-    name: Build local-AI Android APK
-    runs-on: ubuntu-22.04
-    timeout-minutes: 120
+    name: Build MNN runtime and StoryDraw APK (arm64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
     steps:
-      - name: Checkout StoryDraw source chunks
+      - name: Check out StoryDraw project archive
         uses: actions/checkout@v4
 
-      - name: Reconstruct Android project
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat projects/storydraw-ai-local-source-*.b64 | base64 --decode > "$RUNNER_TEMP/storydraw-src.tar.xz"
-          mkdir -p projects/storydraw-ai-local
-          tar -xJf "$RUNNER_TEMP/storydraw-src.tar.xz" -C projects/storydraw-ai-local
-          test -f projects/storydraw-ai-local/app/src/main/cpp/diffusion_jni.cpp
-          test -f projects/storydraw-ai-local/app/src/main/java/com/nqv/storydraw/MainActivity.kt
-
-      - name: Set up JDK 17
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK, NDK and CMake
+      - name: Configure Android SDK
         shell: bash
         run: |
-          set -euo pipefail
-          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          echo "$SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -n 1)"
+          if [[ -z "$SDKMANAGER" ]]; then
+            echo "Cannot find sdkmanager under $SDK_ROOT/cmdline-tools"
+            exit 1
+          fi
+          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
           echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
-          export PATH="$SDK_ROOT/cmdline-tools/latest/bin:$SDK_ROOT/platform-tools:$PATH"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+
+      - name: Install Android platform, NDK and CMake
+        shell: bash
+        run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager --install \
             'platforms;android-35' \
             'build-tools;35.0.0' \
             'ndk;27.2.12479018' \
             'cmake;3.22.1'
-          echo "ANDROID_NDK=$SDK_ROOT/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          echo "$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_PATH"
 
-      - name: Fetch pinned Alibaba MNN source
+      - name: Reconstruct StoryDraw Android project (exact source chunks)
         shell: bash
         run: |
           set -euo pipefail
-          MNN_ROOT="$RUNNER_TEMP/MNN"
-          mkdir -p "$MNN_ROOT"
-          git -C "$MNN_ROOT" init
-          git -C "$MNN_ROOT" remote add origin https://github.com/alibaba/MNN.git
-          git -C "$MNN_ROOT" fetch --depth=1 origin a5c3dd91fe4509aea0d27cec80dc44f7f2d636d7
-          git -C "$MNN_ROOT" checkout --detach FETCH_HEAD
-          git -C "$MNN_ROOT" submodule update --init --recursive
-          echo "MNN_ROOT=$MNN_ROOT" >> "$GITHUB_ENV"
-
-      - name: Fetch the CLIP ViT-L/14 tokenizer asset
-        shell: bash
-        run: |
-          set -euo pipefail
-          TOKENIZER_REPO="$RUNNER_TEMP/tokenizer-src"
-          mkdir -p "$TOKENIZER_REPO"
-          git -C "$TOKENIZER_REPO" init
-          git -C "$TOKENIZER_REPO" remote add origin https://github.com/PickleHik3/termux-launcher.git
-          git -C "$TOKENIZER_REPO" fetch --depth=1 origin 67794593008a8b4e6cac1274085aaeb9347d1976
-          git -C "$TOKENIZER_REPO" checkout --detach FETCH_HEAD
-          TOKENIZER="$TOKENIZER_REPO/app/src/main/assets/tai-diffusion/clip-vit-l14.tokenizer.mtok"
-          test -s "$TOKENIZER"
-          mkdir -p projects/storydraw-ai-local/app/src/main/assets/sd15
-          cp "$TOKENIZER" projects/storydraw-ai-local/app/src/main/assets/sd15/tokenizer.mtok
-          cp "$MNN_ROOT/LICENSE" projects/storydraw-ai-local/app/src/main/assets/sd15/MNN-LICENSE.txt
-          cp projects/storydraw-ai-local/THIRD_PARTY_NOTICES.md projects/storydraw-ai-local/app/src/main/assets/sd15/THIRD_PARTY_NOTICES.txt
-
-      - name: Build MNN Diffusion for arm64 Android with OpenCL
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$MNN_ROOT/project/android"
-          sed -i 's/make -j4/make -j2/' build_64.sh
-          mkdir -p build_64
-          cd build_64
-          ../build_64.sh "-DMNN_LOW_MEMORY=ON -DMNN_BUILD_DIFFUSION=ON -DMNN_BUILD_LLM=ON -DMNN_BUILD_OPENCV=ON -DMNN_IMGCODECS=ON -DMNN_OPENCL=ON -DMNN_SEP_BUILD=OFF -DMNN_SUPPORT_TRANSFORMER_FUSE=ON -DMNN_BUILD_TEST=OFF -DMNN_BUILD_BENCHMARK=OFF -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
-          JNI_LIBS="$GITHUB_WORKSPACE/projects/storydraw-ai-local/app/src/main/jniLibs/arm64-v8a"
-          mkdir -p "$JNI_LIBS"
-          find "$MNN_ROOT/project/android/build_64" -type f -name '*.so' -exec cp -f {} "$JNI_LIBS/" \;
-          test -s "$JNI_LIBS/libMNN.so"
-          echo "Packaged native libraries:"
-          ls -lh "$JNI_LIBS"
+          cat \
+            projects/storydraw-ai-local-source-01.b64 \
+            projects/storydraw-ai-local-source-02.b64 \
+            projects/storydraw-ai-local-source-03.b64 \
+            projects/storydraw-ai-local-source-04.b64 \
+            projects/storydraw-ai-local-source-05.b64 \
+            projects/storydraw-ai-local-source-06.b64 \
+            projects/storydraw-ai-local-source-07.b64 \
+            projects/storydraw-ai-local-source-08.b64 \
+            projects/storydraw-ai-local-source-09.b64 \
+            | base64 --decode > /tmp/storydraw-ai-local.tar.xz
+          xz -t /tmp/storydraw-ai-local.tar.xz
+          mkdir -p projects/storydraw-ai-local
+          tar -xJf /tmp/storydraw-ai-local.tar.xz -C projects/storydraw-ai-local
+          test -f projects/storydraw-ai-local/app/src/main/java/com/nqv/storydraw/MainActivity.kt
+          test -f projects/storydraw-ai-local/app/src/main/cpp/diffusion_jni.cpp
+          test -f projects/storydraw-ai-local/app/build.gradle.kts
+          python3 - <<'PY'
+          from pathlib import Path
+          cpp = Path("projects/storydraw-ai-local/app/src/main/cpp/diffusion_jni.cpp")
+          cpp.write_text(cpp.read_text().replace("Session", "StoryDrawSession"))
+          kt = Path("projects/storydraw-ai-local/app/src/main/java/com/nqv/storydraw/MainActivity.kt")
+          kt.write_text(kt.read_text().replace(
+              "Settings.ACTION_TEXT_TO_SPEECH_SETTINGS",
+              "TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA"
+          ))
+          PY
 
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Assemble debug APK
-        working-directory: projects/storydraw-ai-local
-        run: gradle --no-daemon --stacktrace -PmnnRoot="$RUNNER_TEMP/MNN" assembleDebug
+      - name: Fetch pinned Alibaba MNN source
+        shell: bash
+        run: |
+          git init MNN
+          git -C MNN remote add origin https://github.com/alibaba/MNN.git
+          git -C MNN fetch --depth=1 origin a5c3dd91fe4509aea0d27cec80dc44f7f2d636d7
+          git -C MNN checkout --detach FETCH_HEAD
+          git -C MNN submodule update --init --recursive --depth 1
 
-      - name: Upload APK artifact
+      - name: Build MNN Android arm64 with Diffusion, CLIP tokenizer and OpenCL
+        shell: bash
+        run: |
+          cd MNN/project/android
+          mkdir -p build_64
+          cd build_64
+          sed -i 's/make -j4/make -j2/' ../build_64.sh
+          MNN_FLAGS="-DMNN_BUILD_LLM=ON -DMNN_BUILD_DIFFUSION=ON -DMNN_OPENCL=ON -DMNN_LLM_BUILD_DEMO=OFF -DMNN_SEP_BUILD=OFF -DMNN_LOW_MEMORY=ON -DMNN_SUPPORT_TRANSFORMER_FUSE=ON -DMNN_BUILD_TEST=OFF -DMNN_BUILD_BENCHMARK=OFF -DMNN_BUILD_DEMO=OFF -DMNN_BUILD_TOOLS=OFF -DMNN_USE_LOGCAT=ON -DMNN_BUILD_OPENCV=ON -DMNN_IMGCODECS=ON -DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384 -DCMAKE_INSTALL_PREFIX=."
+          bash ../build_64.sh "$MNN_FLAGS"
+          find . -name 'libMNN.so' -type f -print -quit | grep -q 'libMNN.so'
+
+      - name: Stage MNN shared libraries into Android app
+        shell: bash
+        run: |
+          APP=projects/storydraw-ai-local/app
+          MNN_LIB="$(find MNN/project/android/build_64 -name libMNN.so -type f | head -n 1)"
+          test -n "$MNN_LIB"
+          LIB_DIR="$(dirname "$MNN_LIB")"
+          mkdir -p "$APP/src/main/jniLibs/arm64-v8a"
+          find "$LIB_DIR" -maxdepth 1 -name '*.so' -type f -exec cp -v {} "$APP/src/main/jniLibs/arm64-v8a/" \;
+          test -f "$APP/src/main/jniLibs/arm64-v8a/libMNN.so"
+          ls -lh "$APP/src/main/jniLibs/arm64-v8a"
+
+      - name: Add verified CLIP ViT-L/14 tokenizer for MNN Diffusion
+        shell: bash
+        run: |
+          mkdir -p projects/storydraw-ai-local/app/src/main/assets/sd15
+          curl --fail --location --retry 5 --retry-all-errors \
+            'https://raw.githubusercontent.com/PickleHik3/termux-launcher/67794593008a8b4e6cac1274085aaeb9347d1976/app/src/main/assets/tai-diffusion/clip-vit-l14.tokenizer.mtok' \
+            -o projects/storydraw-ai-local/app/src/main/assets/sd15/tokenizer.mtok
+          test "$(stat -c%s projects/storydraw-ai-local/app/src/main/assets/sd15/tokenizer.mtok)" -gt 500000
+          head -c 32 projects/storydraw-ai-local/app/src/main/assets/sd15/tokenizer.mtok
+
+      - name: Build StoryDraw AI APK
+        shell: bash
+        run: |
+          cd projects/storydraw-ai-local
+          gradle --no-daemon --stacktrace -PmnnRoot="$GITHUB_WORKSPACE/MNN" assembleDebug
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          ls -lh app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload installable APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: StoryDraw-AI-Local-0.2.0-APK
+          name: StoryDraw-AI-Local-v0.2.0-APK
           path: projects/storydraw-ai-local/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish a prerelease APK
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Publish APK to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: storydraw-ai-local-0.2.0-build-${{ github.run_number }}
+          tag_name: storydraw-ai-local-v0.2.0-build-${{ github.run_number }}
           name: StoryDraw AI Local 0.2.0 · Build ${{ github.run_number }}
           prerelease: true
-          fail_on_unmatched_files: true
           body: |
-            StoryDraw AI local Android MVP.
-            - No paid API or per-generation credits.
-            - Initial Wi-Fi model download about 1.15 GB, then offline image generation.
-            - Test on vivo X200 Pro is still required; OpenCL support and speed depend on the device driver.
-            - Uses Android offline Vietnamese TTS voice if installed; male voice availability varies by device.
-            - Drawn-stroke look is an image-contour animation, not an actual artist stroke recording.
+            StoryDraw AI Android Local MVP 0.2.0.
+            No paid generation API or per-video credits.
+            Initial Wi-Fi download of the image model is about 1.15 GB; following generation runs are local.
+            Not yet benchmarked on vivo X200 Pro. Character identity is prompt-guided, not guaranteed.
+            Brush drawing is contour-tracing simulation, not an original stroke recording.
+            Vietnamese male narration depends on the offline TTS voices installed on the phone.
           files: projects/storydraw-ai-local/app/build/outputs/apk/debug/app-debug.apk
+          fail_on_unmatched_files: true
