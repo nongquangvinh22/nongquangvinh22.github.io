@@ -1,512 +1,121 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#1e2e27">
-<meta name="description" content="Hán Lâm Ký - hành trình học tiếng Trung giản thể trong thế giới Trung Hoa cổ đại.">
-<title>Hán Lâm Ký · 汉林记</title>
-<style>
-:root{--ink:#f5ead4;--muted:#d6c6a6;--gold:#d8b36d;--gold2:#a97c3d;--dark:#15251e;--panel:rgba(21,35,28,.89);--line:rgba(225,190,123,.38);--red:#8c3d31}
-*{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#9eb5a5;color:var(--ink);font-family:Georgia,"Times New Roman",serif}
-button,input{font:inherit}
-#game{position:fixed;inset:0}
-#game canvas{display:block;width:100%;height:100%;outline:none;cursor:crosshair;touch-action:none}
-#vignette{position:fixed;inset:0;pointer-events:none;z-index:2;background:radial-gradient(ellipse at 50% 45%,transparent 45%,rgba(8,18,13,.35) 100%)}
-#loading{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:linear-gradient(145deg,#182c23,#354b3c);color:#ecd7ad;font:13px Arial,sans-serif;letter-spacing:2px}
-#loading small{display:block;margin-top:12px;color:#b9aa8d;letter-spacing:0}
-#topbar{position:fixed;z-index:5;top:16px;left:18px;right:18px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;pointer-events:none}
-#brand,#profile,#actions{pointer-events:auto}
-#brand{display:flex;align-items:center;gap:11px;padding:10px 15px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(120deg,rgba(18,33,26,.94),rgba(44,52,39,.82));backdrop-filter:blur(12px);box-shadow:0 9px 30px #07130e66}
-#seal{width:40px;height:40px;display:grid;place-items:center;border:2px solid #dfbd78;border-radius:10px;background:linear-gradient(145deg,#9b4434,#53251f);box-shadow:inset 0 0 0 2px #6e3028;color:#f6dfad;font-size:22px;font-weight:bold}
-#brandTitle{font-size:18px;letter-spacing:2.2px;font-weight:bold;color:#f4e8d0}
-#brandSub{font:9px Arial,sans-serif;letter-spacing:1.6px;color:#ceb98f;margin-top:3px}
-#profile{position:absolute;left:50%;top:0;transform:translateX(-50%);min-width:205px;padding:9px 18px 10px;text-align:center;border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;background:rgba(20,35,28,.86);backdrop-filter:blur(12px)}
-#playerName{font-size:15px;color:#f1dfbb}
-#rank{font:10px Arial,sans-serif;letter-spacing:1.4px;color:var(--gold);margin-top:4px}
-#xpTrack{height:4px;background:#ffffff22;border-radius:20px;margin-top:8px;overflow:hidden}
-#xpFill{height:100%;width:0;background:linear-gradient(90deg,#a6753b,#f4d89a);transition:width .35s}
-#actions{display:flex;gap:7px}
-.uiBtn{border:1px solid var(--line);border-radius:11px;padding:10px 13px;color:#f3e8d1;background:rgba(20,35,28,.9);backdrop-filter:blur(10px);box-shadow:0 5px 17px #06100b55;cursor:pointer;font:12px Arial,sans-serif;transition:.18s}
-.uiBtn:hover,.uiBtn:focus-visible{background:#51634b;border-color:#e2c47e;transform:translateY(-1px)}
-#mission{position:fixed;z-index:4;top:113px;left:18px;width:260px;padding:15px 17px;border:1px solid var(--line);border-radius:14px;background:var(--panel);backdrop-filter:blur(12px);box-shadow:0 10px 30px #07130d55}
-.eyebrow{font:9px Arial,sans-serif;color:var(--gold);letter-spacing:2px;text-transform:uppercase}
-#missionTitle{font-size:16px;margin:8px 0 6px;color:#f5e4c2}
-#missionDesc{font:12px/1.55 Arial,sans-serif;color:#dfd4bf}
-#missionHint{font:10px/1.5 Arial,sans-serif;color:#d6b875;margin-top:10px}
-#location{position:fixed;z-index:4;right:21px;top:100px;color:#f4e7ce;text-shadow:0 2px 8px #15231d;font:10px Arial,sans-serif;letter-spacing:2px}
-#controls{position:fixed;z-index:4;left:50%;bottom:18px;transform:translateX(-50%);padding:10px 15px;border:1px solid #d5bd8a66;border-radius:30px;background:rgba(18,32,25,.8);backdrop-filter:blur(10px);color:#e8dfcd;font:11px Arial,sans-serif;white-space:nowrap;box-shadow:0 8px 25px #06100b44}
-.key{display:inline-grid;place-items:center;min-width:21px;height:21px;padding:0 4px;border:1px solid #cfb88688;border-radius:5px;color:#f2dca9;font-weight:bold;margin:0 2px}
-#copyright{position:fixed;right:16px;bottom:15px;z-index:8;padding:8px 12px;border:1px solid rgba(224,190,118,.4);border-radius:9px;background:rgba(17,30,23,.82);color:#e5d0a0;font:11px Arial,sans-serif;letter-spacing:.35px;backdrop-filter:blur(8px);box-shadow:0 5px 18px #06110c55;pointer-events:none}
-#copyright b{color:#fff0ce}
-#toast{position:fixed;z-index:25;top:95px;left:50%;transform:translate(-50%,-10px);padding:10px 18px;border:1px solid #dfc181;border-radius:30px;background:#1b3025;color:#f5e8c8;font:12px Arial,sans-serif;opacity:0;pointer-events:none;transition:.22s;white-space:nowrap}
-#toast.show{opacity:1;transform:translate(-50%,0)}
-#prompt{position:fixed;z-index:5;left:50%;bottom:88px;transform:translateX(-50%);padding:9px 14px;border:1px solid #e2c58177;border-radius:30px;background:rgba(20,35,28,.88);color:#f3e2bd;font:12px Arial,sans-serif;opacity:0;transition:.2s;pointer-events:none}
-#prompt.show{opacity:1}
-#touchPad{position:fixed;z-index:6;left:13px;bottom:25px;display:none;grid-template-columns:repeat(3,46px);grid-template-rows:repeat(2,42px);gap:4px}
-.touchKey{border:1px solid #ddc28c88;border-radius:11px;background:rgba(20,34,27,.78);color:#f6e7c5;font:18px Arial,sans-serif;touch-action:none;user-select:none}
-.touchKey[data-key="KeyW"]{grid-column:2;grid-row:1}
-.touchKey[data-key="KeyA"]{grid-column:1;grid-row:2}
-.touchKey[data-key="KeyS"]{grid-column:2;grid-row:2}
-.touchKey[data-key="KeyD"]{grid-column:3;grid-row:2}
-#touchInteract{position:fixed;z-index:6;right:18px;bottom:58px;width:60px;height:60px;border:1px solid #e4c987;border-radius:50%;background:linear-gradient(145deg,#af8447,#704b2d);color:white;font-weight:bold;display:none}
-#modalRoot{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:18px;background:#07110c88;backdrop-filter:blur(7px)}
-.modal{width:min(560px,94vw);max-height:88vh;overflow:auto;padding:25px;border:1px solid #d6b47799;border-radius:18px;background:linear-gradient(150deg,rgba(38,53,41,.99),rgba(17,30,24,.99));box-shadow:0 24px 80px #0009}
-.modal h1,.modal h2{margin:7px 0 10px;color:#f2dfb8;font-weight:normal}
-.modal h1{font-size:34px;letter-spacing:3px}
-.modal h2{font-size:24px}
-.modal p{font:13px/1.65 Arial,sans-serif;color:#e0d7c6}
-.modal .sub{font:10px Arial,sans-serif;color:#d3b77a;letter-spacing:2px}
-.modal input{display:block;width:100%;margin:14px 0 12px;padding:13px 14px;color:#f8edda;background:#101d16;border:1px solid #b9986380;border-radius:10px;outline:none}
-.primary,.secondary{cursor:pointer;padding:12px 17px;border-radius:10px}
-.primary{border:1px solid #e6ce91;background:linear-gradient(135deg,#b78949,#80562f);color:#fff5df;font-weight:bold;box-shadow:0 5px 16px #090f0b66}
-.secondary{border:1px solid #d7c08b77;background:#ffffff0b;color:#eee1c5}
-.row{display:flex;gap:9px;flex-wrap:wrap;margin-top:15px}
-.choice{display:block;width:100%;text-align:left;cursor:pointer;margin:8px 0;padding:12px 14px;border:1px solid #c8ae7a66;border-radius:10px;background:#ffffff0a;color:#f2e5cb;font:13px Arial,sans-serif}
-.choice:hover{background:#b58a4a2b;border-color:#e2c17e}
-.choice.correct{border-color:#93bc87;background:#4e7c4730}
-.choice.wrong{border-color:#cf8270;background:#a9473730}
-.chinese{font-size:29px;line-height:1.5;color:#f6dca7;letter-spacing:1px}
-.pinyin{font:italic 14px Arial,sans-serif;color:#d5ba7d;margin:5px 0}
-.translation{font:13px Arial,sans-serif;color:#e8e0d1;margin:8px 0}
-.hidden{display:none!important}
-@media(max-width:760px){
- #topbar{top:8px;left:8px;right:8px}#brand{padding:7px 9px;gap:7px}#seal{width:30px;height:30px;font-size:16px}#brandTitle{font-size:13px}#brandSub{font-size:7px}
- #profile{top:48px;left:8px;transform:none;min-width:135px;padding:7px 10px}
- #actions{gap:4px}.uiBtn{padding:9px 9px;font-size:10px}
- #mission{top:105px;left:8px;width:190px;padding:10px 12px}#missionTitle{font-size:14px}#missionDesc{font-size:11px}
- #location{display:none}#controls{display:none}#touchPad{display:grid}#touchInteract{display:block}
- #copyright{right:8px;bottom:8px;font-size:9px;padding:7px 9px}
- .modal{padding:19px}.modal h1{font-size:27px}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Hán Lâm Ký (汉林记) — Làng Thanh Khê</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800&family=Noto+Serif+SC:wght@600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./css/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+  }
 }
-</style>
+</script>
 </head>
 <body>
-<div id="game"></div><div id="vignette"></div>
-<div id="loading">HÁN LÂM KÝ · 正在入境<small>Đang dựng thôn Thanh Khê…</small></div>
-<header id="topbar">
- <div id="brand"><div id="seal">汉</div><div><div id="brandTitle">HÁN LÂM KÝ</div><div id="brandSub">汉 林 记 · CON ĐƯỜNG KHOA CỬ</div></div></div>
- <div id="profile"><div id="playerName">Học trò mới</div><div id="rank">HỌC ĐỒNG · 学童</div><div id="xpTrack"><div id="xpFill"></div></div></div>
- <div id="actions"><button class="uiBtn" id="bookBtn">📜 Sổ học vấn</button><button class="uiBtn" id="questBtn">☷ Nhiệm vụ</button><button class="uiBtn" id="soundBtn">♪ Âm thanh</button></div>
-</header>
-<section id="mission"><div class="eyebrow">Nhiệm vụ hiện tại</div><div id="missionTitle">Tìm thầy đồ</div><div id="missionDesc">Hãy đến gần thầy đồ trong sân thôn học để bắt đầu bài học đầu tiên.</div><div id="missionHint">Nhấp vào thầy đồ để tự đi tới và trò chuyện.</div></section>
-<div id="location">THÔN THANH KHÊ · 青溪村</div>
-<div id="controls"><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> Di chuyển · <span class="key">Shift</span> Chạy · Kéo chuột trái/phải: quay · Lăn chuột: zoom · Nhấp đúp: chạy tới</div>
-<div id="prompt"></div>
-<div id="touchPad"><button class="touchKey" data-key="KeyW">↑</button><button class="touchKey" data-key="KeyA">←</button><button class="touchKey" data-key="KeyS">↓</button><button class="touchKey" data-key="KeyD">→</button></div>
-<button id="touchInteract">E</button>
-<div id="copyright">© <b>Nông Quang Vinh</b></div>
-<div id="toast"></div>
-<div id="modalRoot">
- <section class="modal" id="startModal">
-  <div class="sub">一字之始 · VẠN DẶM HỌC VẤN</div><h1>汉林记</h1><h2>HÁN LÂM KÝ</h2>
-  <p>Tiếng chuông sớm vang lên giữa thôn Thanh Khê. Hành trình của một học trò mới bắt đầu từ những chữ Hán đầu tiên.</p>
-  <label for="playerInput" style="font:11px Arial,sans-serif;color:#d9c28f">Tên nhân vật của bạn</label>
-  <input id="playerInput" maxlength="18" placeholder="Nhập tên nhân vật…">
-  <div class="row"><button class="primary" id="startBtn">Bước vào thôn làng →</button><button class="secondary" id="resetBtn">Tạo nhân vật mới</button></div>
-  <p style="font-size:10px;color:#b9b09d;margin-top:15px">Prototype lưu tiến trình trên trình duyệt hiện tại. Tính năng đăng nhập và đồng bộ nhiều thiết bị sẽ được bổ sung riêng.</p>
- </section>
-</div>
-<script type="module">
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+<div id="game-container"></div>
 
-const $=id=>document.getElementById(id);
-const SAVE_KEY="han-lam-ky-save-v1";
-const tasks=[
- {id:"teacher",npc:"teacher",title:"Bài học đầu tiên: lời chào",hanzi:"你好",pinyin:"Nǐ hǎo",meaning:"Xin chào",question:"Thầy đồ mỉm cười: “你好！”. Câu này có nghĩa là gì?",choices:["Tạm biệt","Xin chào","Cảm ơn"],answer:1,explain:"你好 (Nǐ hǎo) là lời chào thông dụng, nghĩa là “Xin chào”.",xp:80},
- {id:"merchant",npc:"merchant",title:"Đến chợ mua bánh",hanzi:"我要一个包子。",pinyin:"Wǒ yào yí ge bāozi.",meaning:"Tôi muốn một chiếc bánh bao.",question:"Câu 我要一个包子 có nghĩa là gì?",choices:["Tôi muốn một chiếc bánh bao.","Tôi không muốn đi chợ.","Xin hỏi đường đến trường."],answer:0,explain:"我要 là “tôi muốn”; 一个包子 là “một chiếc bánh bao”.",xp:100},
- {id:"courier",npc:"courier",title:"Lời cảm ơn trên đường làng",hanzi:"谢谢！",pinyin:"Xièxie",meaning:"Cảm ơn!",question:"Người đưa thư giúp con nhặt quyển sách. 谢谢 thể hiện điều gì?",choices:["Xin lỗi","Cảm ơn","Chúc ngủ ngon"],answer:1,explain:"谢谢 (Xièxie) có nghĩa là “Cảm ơn”.",xp:120}
-];
-let profile=readSave(),scene,camera,renderer,clock,player,npcs=[],decor=[],colliders=[],birds=[],ripples=[],moveTarget=null,pendingNpc=null;
-let keys=new Set(),cameraYaw=0,cameraPitch=.25,cameraDistance=10,dragging=false,dragStart=null,lastClick=0,runTarget=false,soundOn=true,started=false,dialogueTask=null,quizLocked=false;
-const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
-function readSave(){try{return JSON.parse(localStorage.getItem(SAVE_KEY)||"null")}catch(e){return null}}
-function save(){if(profile){localStorage.setItem(SAVE_KEY,JSON.stringify(profile));refreshHUD()}}
-function rank(xp){if(xp>=300)return ["Tú tài","秀才"];if(xp>=180)return ["Đồng sinh","童生"];return ["Học đồng","学童"]}
-function refreshHUD(){
- if(!profile)return;
- $("playerName").textContent=profile.name;
- const r=rank(profile.xp||0);$("rank").textContent=r[0].toUpperCase()+" · "+r[1];
- $("xpFill").style.width=Math.min(100,((profile.xp||0)%150)/150*100)+"%";
- const next=tasks.find(t=>!profile.done.includes(t.id));
- $("missionTitle").textContent=next?next.title:"Đã hoàn thành nhiệm vụ mở đầu";
- $("missionDesc").textContent=next?"Hãy tìm "+npcName(next.npc)+" và nhấp vào nhân vật đó để trò chuyện.":"Con đã hoàn thành các bài học đầu tiên. Hãy mở sổ học vấn để ôn tập.";
- $("missionHint").textContent=next?"Nhấp NPC: tự đi tới · Kéo chuột: quay trái/phải · Nhấp đúp: chạy.":"Tiến trình được lưu trên thiết bị này.";
-}
-function npcName(id){return ({teacher:"thầy đồ",merchant:"bác bán hàng",courier:"người đưa thư"})[id]||"người trong làng"}
-function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2300)}
-function speak(text){if(!soundOn||!("speechSynthesis"in window))return;window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang="zh-CN";u.rate=.82;window.speechSynthesis.speak(u)}
-function material(color,rough=.85,metal=0){return new THREE.MeshStandardMaterial({color,roughness:rough,metalness:metal})}
-function box(parent,w,h,d,mat,x,y,z){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m}
-function cylinder(parent,rt,rb,h,mat,x,y,z,seg=12){const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m}
-function texture(kind){
- const c=document.createElement("canvas");c.width=256;c.height=256;const ctx=c.getContext("2d");
- if(kind==="grass"){
-  ctx.fillStyle="#7f9162";ctx.fillRect(0,0,256,256);
-  for(let i=0;i<4200;i++){ctx.fillStyle=["#91a36d","#687d51","#a0a879","#566d4c"][i%4];ctx.globalAlpha=.22;ctx.fillRect(Math.random()*256,Math.random()*256,1+Math.random()*3,1+Math.random()*2)}ctx.globalAlpha=1;
- }else if(kind==="roof"){
-  ctx.fillStyle="#46332c";ctx.fillRect(0,0,256,256);
-  for(let y=0;y<256;y+=18){ctx.strokeStyle="#80614e";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(256,y);ctx.stroke();for(let x=(y%36?0:18);x<256;x+=36){ctx.strokeStyle="#2e2723";ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+8,y+18);ctx.stroke()}}
- }else{
-  ctx.fillStyle="#a68f6a";ctx.fillRect(0,0,256,256);
-  for(let i=0;i<1900;i++){ctx.fillStyle=i%2?"#d1b88d":"#75644c";ctx.globalAlpha=.18;ctx.fillRect(Math.random()*256,Math.random()*256,1+Math.random()*2,1+Math.random()*2)}ctx.globalAlpha=1;
- }
- const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;return t;
-}
-function addRibbon(points,width,mat,y=.035){
- const curve=new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(p[0],y,p[1])));
- const segments=Math.max(24,points.length*14),verts=[],idx=[];
- for(let i=0;i<=segments;i++){const t=i/segments,p=curve.getPoint(t),tan=curve.getTangent(t).normalize(),side=new THREE.Vector3(-tan.z,0,tan.x).multiplyScalar(width*.5);verts.push(p.x+side.x,p.y,p.z+side.z,p.x-side.x,p.y,p.z-side.z);if(i<segments){const a=i*2;idx.push(a,a+2,a+1,a+1,a+2,a+3)}}
- const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(verts,3));g.setIndex(idx);g.computeVertexNormals();const mesh=new THREE.Mesh(g,new THREE.MeshStandardMaterial({map:mat,side:THREE.DoubleSide,roughness:.98}));mesh.receiveShadow=true;scene.add(mesh);return mesh;
-}
-function createHouse(x,z,scale,color,label){
- const g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(scale);scene.add(g);
- const wall=material(color),dark=material("#49352b"),wood=material("#624530"),trim=material("#ad8756"),stone=material("#887b64");
- box(g,8.7,.55,7,stone,0,.25,0);box(g,8,4,6.2,wall,0,2.5,0);
- box(g,8.2,.18,.2,wood,0,.75,3.13);box(g,8.2,.18,.2,wood,0,4.48,3.13);
- for(const x0 of [-3.8,0,3.8])box(g,.2,4.1,.22,wood,x0,2.55,3.16);
- // Double wooden door
- for(const xx of [-.62,.62]){box(g,1.12,2.65,.15,dark,xx,1.85,3.18);box(g,.92,2.4,.05,wood,xx,1.85,3.26);for(const yy of [1.05,2.55])box(g,.9,.06,.06,trim,xx,yy,3.3)}
- // lattice windows
- for(const xx of [-2.55,2.55]){
-  box(g,1.38,1.32,.12,wood,xx,2.7,3.16);box(g,1.14,1.08,.05,material("#b7aa89"),xx,2.7,3.24);
-  for(const dx of [-.34,0,.34])box(g,.045,1.08,.06,dark,xx+dx,2.7,3.29);
-  for(const yy of [2.34,2.7,3.06])box(g,1.14,.045,.06,dark,xx,yy,3.29);
- }
- // Front gable
- const shape=new THREE.Shape();shape.moveTo(-4.15,4.42);shape.lineTo(0,6.55);shape.lineTo(4.15,4.42);shape.closePath();
- const face=new THREE.Mesh(new THREE.ShapeGeometry(shape),wall);face.position.z=3.13;face.castShadow=true;g.add(face);
- // Two sloping tiled roof planes
- const roofMat=material("#4b3029");
- function roofSide(side){
-  const a=side*4.65,b=0,yE=4.48,yR=6.78,z0=-3.65,z1=3.65;
-  const p=[a,yE,z0,b,yR,z0,b,yR,z1,a,yE,z1];
-  const geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.Float32BufferAttribute(p,3));geo.setIndex([0,1,2,0,2,3]);geo.computeVertexNormals();
-  const mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:"#53372e",roughness:.95,side:THREE.DoubleSide}));mesh.castShadow=true;mesh.receiveShadow=true;g.add(mesh);
-  for(let i=1;i<=7;i++){const xx=side*i*.55,yy=yR-i*.29;const rib=box(g,.075,.075,7.42,material(i%2?"#765344":"#604136"),xx,yy,0);rib.rotation.z=-side*.46}
-  box(g,.22,.23,7.65,wood,side*4.57,4.42,0);
- }
- roofSide(-1);roofSide(1);
- box(g,.2,.24,7.55,dark,0,6.75,0);
- for(const side of [-1,1])for(const zz of [-3.65,3.65]){const tip=box(g,.22,.22,.32,trim,side*4.6,4.65,zz);tip.rotation.z=-side*.3}
- // Sign board with Chinese lettering
- box(g,2.4,.76,.18,dark,0,4.82,3.33);
- const c=document.createElement("canvas");c.width=512;c.height=128;const ctx=c.getContext("2d");ctx.fillStyle="#71392d";ctx.fillRect(0,0,512,128);ctx.strokeStyle="#d6b66f";ctx.lineWidth=7;ctx.strokeRect(8,8,496,112);ctx.fillStyle="#f4dfaa";ctx.font="bold 58px serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(label,256,67);
- const tx=new THREE.CanvasTexture(c);tx.colorSpace=THREE.SRGBColorSpace;const sign=new THREE.Mesh(new THREE.PlaneGeometry(2.15,.52),new THREE.MeshBasicMaterial({map:tx}));sign.position.set(0,4.82,3.44);g.add(sign);
- box(g,2.1,.22,1,stone,0,.18,4.0);
- colliders.push({x,z,r:5.5*scale});
- return g;
-}
-function createTree(x,z,s=1){
- const g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(s);scene.add(g);
- cylinder(g,.22,.38,3,material("#64482f"),0,1.5,0,10);
- for(let i=0;i<5;i++){
-  const a=i*Math.PI*2/5,branch=cylinder(g,.08,.13,1.45,material("#64482f"),Math.cos(a)*.48,2.45,Math.sin(a)*.48,8);branch.rotation.z=Math.cos(a)*.55;branch.rotation.x=Math.sin(a)*.45;
- }
- const leaves=["#3f6944","#4e7847","#638a51","#78965a","#527c4d"];
- const clumps=[[-.9,3.45,0,1.18],[.78,3.55,.2,1.22],[0,4.25,0,1.45],[-.18,4.95,.18,1.04],[.9,4.35,-.3,.88]];
- clumps.forEach((p,i)=>{const leaf=new THREE.Mesh(new THREE.SphereGeometry(p[3],14,11),material(leaves[i]));leaf.position.set(p[0],p[1],p[2]);leaf.scale.set(1,.82,1);leaf.castShadow=true;g.add(leaf)});
- return g;
-}
-function createBamboo(x,z){
- const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
- for(let i=0;i<7;i++){
-  const xx=(Math.random()-.5)*2.5,zz=(Math.random()-.5)*2.5,h=5.5+Math.random()*2.4;
-  cylinder(g,.055,.075,h,material("#67854b"),xx,h/2,zz,7);
-  for(let y=1;y<h;y+=1.15)cylinder(g,.083,.083,.07,material("#a3a05a"),xx,y,zz,7);
-  for(let j=0;j<5;j++){const leaf=box(g,.07,.58,.025,material("#527b45"),xx+(Math.random()-.5)*.55,h*.64+j*.14,zz);leaf.rotation.z=(Math.random()-.5)*1.25}
- }
-}
-function createStall(x,z,clothColor){
- const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);const wood=material("#775238"),cloth=material(clothColor);
- for(const xx of [-1.8,1.8])for(const zz of [-1,1])cylinder(g,.08,.1,3,wood,xx,1.5,zz,8);
- box(g,4.2,.18,2.6,cloth,0,3.1,0);box(g,4.3,.12,2.7,wood,0,2.99,0);
- box(g,4,.22,1.05,wood,0,.95,.15);
- for(let i=0;i<6;i++){const fruit=new THREE.Mesh(new THREE.SphereGeometry(.22,10,8),material(["#bb5942","#d1a74e","#789457"][i%3]));fruit.position.set(-1.35+i*.54,1.3,.1);g.add(fruit)}
-}
-function createPagoda(x,z){
- const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);const red=material("#773c2e"),gold=material("#b68d4e"),wall=material("#c7ad84");
- box(g,8,.55,8,material("#9d9076"),0,.28,0);
- for(let level=0;level<3;level++){
-  const y=1+level*2.65,w=5.2-level*.9;
-  box(g,w,1.75,w,wall,0,y+.88,0);
-  for(const sx of [-1,1])for(const sz of [-1,1])box(g,.13,1.8,.13,red,sx*(w/2-.18),y+.9,sz*(w/2-.18));
-  box(g,w+1.3,.15,w+1.3,gold,0,y+1.8,0);
-  const roof=new THREE.Mesh(new THREE.ConeGeometry((w+1.3)*.78,1.05,4),red);roof.rotation.y=Math.PI/4;roof.position.y=y+2.3;roof.castShadow=true;g.add(roof);
- }
- cylinder(g,.1,.2,2.3,gold,0,9.5,0,10);
-}
-function makeLabel(text){
- const c=document.createElement("canvas");c.width=512;c.height=128;const ctx=c.getContext("2d");ctx.fillStyle="rgba(17,31,24,.88)";ctx.beginPath();ctx.roundRect(6,6,500,116,20);ctx.fill();ctx.strokeStyle="#d8b66f";ctx.lineWidth=4;ctx.stroke();ctx.fillStyle="#f1dfb9";ctx.font="bold 39px Georgia";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(text,256,64);
- const tx=new THREE.CanvasTexture(c);tx.colorSpace=THREE.SRGBColorSpace;const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tx,transparent:true,depthWrite:false}));sp.scale.set(3.6,.9,1);return sp;
-}
-function createHumanoid(name,x,z,color,hatColor="#2c2722",isPlayer=false){
- const root=new THREE.Group();root.position.set(x,0,z);scene.add(root);
- const rig=new THREE.Group();root.add(rig);const robe=material(color),light=material("#748a72"),skin=material("#d5a680"),hair=material(hatColor),gold=material("#bd9858");
- const torso=new THREE.Mesh(new THREE.CylinderGeometry(.38,.62,1.75,18,2),robe);torso.position.y=1.32;torso.castShadow=true;torso.receiveShadow=true;rig.add(torso);
- const hem=cylinder(rig,.65,.65,.12,light,0,.49,0,18);
- box(rig,.78,.13,.76,gold,0,.94,0);
- const head=new THREE.Mesh(new THREE.SphereGeometry(.31,18,14),skin);head.position.set(0,2.36,0);head.castShadow=true;rig.add(head);
- const hairCap=new THREE.Mesh(new THREE.SphereGeometry(.32,16,10),hair);hairCap.position.set(0,2.48,.07);hairCap.scale.set(1,1,.7);rig.add(hairCap);
- const cap=cylinder(rig,.35,.34,.24,hair,0,2.68,0,14);
- box(rig,.7,.1,.62,hair,0,2.84,0);
- // Small eyes on front of the face (local -Z)
- const eyeMat=material("#2b211b");
- for(const ex of [-.105,.105]){const eye=new THREE.Mesh(new THREE.SphereGeometry(.027,8,6),eyeMat);eye.position.set(ex,2.38,-.288);rig.add(eye)}
- const arms=[];
- for(const sx of [-1,1]){
-  const pivot=new THREE.Group();pivot.position.set(sx*.44,1.92,0);rig.add(pivot);
-  const sleeve=new THREE.Mesh(new THREE.CylinderGeometry(.15,.22,.92,12),robe);sleeve.position.set(sx*.08,-.43,0);sleeve.rotation.z=-sx*.12;sleeve.castShadow=true;pivot.add(sleeve);
-  const hand=new THREE.Mesh(new THREE.SphereGeometry(.12,10,8),skin);hand.position.set(sx*.11,-.88,-.05);pivot.add(hand);arms.push(pivot);
- }
- const legs=[];
- for(const sx of [-1,1]){
-  const pivot=new THREE.Group();pivot.position.set(sx*.22,.53,0);rig.add(pivot);
-  cylinder(pivot,.16,.19,.75,material("#3a3029"),0,-.36,0,10);
-  box(pivot,.21,.12,.34,material("#211e1b"),0,-.74,-.08);legs.push(pivot);
- }
- const shadow=new THREE.Mesh(new THREE.CircleGeometry(.72,24),new THREE.MeshBasicMaterial({color:"#1b2a1e",transparent:true,opacity:.2}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.035;root.add(shadow);
- let label=null,marker=null;
- if(!isPlayer){label=makeLabel(name);label.position.set(0,3.35,0);root.add(label);marker=makeLabel("!");marker.scale.set(.68,.68,1);marker.position.set(0,4.18,0);root.add(marker)}
- const entity={root,rig,arms,legs,torso,hem,label,marker,name,id:null,phase:Math.random()*6};
- root.traverse(o=>{if(o.isMesh)o.userData.entity=entity});
- if(isPlayer)player=entity;
- else npcs.push(entity);
- return entity;
-}
-function createLantern(x,z,color="#ad4636"){
- const pivot=new THREE.Group();pivot.position.set(x,0,z);scene.add(pivot);
- cylinder(pivot,.055,.075,4.1,material("#5f432d"),0,2.05,0,8);
- const swing=new THREE.Group();swing.position.set(0,3.65,0);pivot.add(swing);
- box(swing,.72,.82,.72,material(color),0,-.52,0);
- box(swing,.84,.11,.84,material("#c09b58"),0,-.08,0);
- box(swing,.82,.1,.82,material("#c09b58"),0-.0,-.96,0);
- const glow=new THREE.PointLight("#ffb85c",1.2,8);glow.position.set(0,-.5,0);swing.add(glow);
- decor.push({type:"lantern",object:swing,phase:Math.random()*5});
-}
-function createBirds(){
- const birdMat=material("#34443a");
- for(let i=0;i<5;i++){
-  const g=new THREE.Group();scene.add(g);
-  const body=box(g,.16,.12,.32,birdMat,0,0,0);
-  const wings=[];
-  for(const side of [-1,1]){const w=box(g,.52,.055,.2,birdMat,side*.28,0,0);w.rotation.z=side*.18;wings.push(w)}
-  g.position.set(-12+i*2,13+i%2, -27-i*1.5);birds.push({g,wings,phase:i*.8,origin:g.position.clone()});
- }
-}
-function makeWorld(){
- scene=new THREE.Scene();scene.background=new THREE.Color("#b8ccca");scene.fog=new THREE.Fog("#b8ccca",110,225);
- camera=new THREE.PerspectiveCamera(56,innerWidth/innerHeight,.1,300);
- renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:"high-performance"});
- renderer.setPixelRatio(Math.min(devicePixelRatio,1.4));renderer.setSize(innerWidth,innerHeight);
- renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
- renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
- $("game").appendChild(renderer.domElement);
- scene.add(new THREE.HemisphereLight("#edf4e8","#52684d",1.7));
- const sun=new THREE.DirectionalLight("#ffe5bf",2.3);sun.position.set(-28,48,26);sun.castShadow=true;
- sun.shadow.mapSize.set(1536,1536);sun.shadow.camera.left=-60;sun.shadow.camera.right=60;sun.shadow.camera.top=60;sun.shadow.camera.bottom=-60;sun.shadow.bias=-.00025;sun.shadow.normalBias=.025;scene.add(sun);
- // Ground
- const grass=texture("grass");grass.repeat.set(12,12);
- const ground=new THREE.Mesh(new THREE.PlaneGeometry(190,190),new THREE.MeshStandardMaterial({map:grass,color:"#e1e3c5",roughness:1}));
- ground.rotation.x=-Math.PI/2;ground.position.y=-.04;ground.receiveShadow=true;scene.add(ground);
- // Mountain backdrop with layered foothills
- for(let i=0;i<17;i++){
-  const x=-108+i*13.5,z=-88-(i%4)*9;
-  const h=19+(i%5)*3.8,w=15+(i%3)*3;
-  const hill=new THREE.Mesh(new THREE.SphereGeometry(1,18,14),material(i%3===0?"#6f8b78":i%3===1?"#809985":"#91a58d"));
-  hill.scale.set(w,h,w*.72);hill.position.set(x,h*.34,z);hill.castShadow=false;scene.add(hill);
- }
- // Main village lane: narrower, curved, and connected to the school and market.
- const dirt=texture("stone");dirt.repeat.set(2,8);
- addRibbon([[0,31],[0,23],[0,16],[0,9],[1,2],[0,-5],[-2,-12],[-1,-20],[0,-31],[0,-47]],3.4,dirt,.025);
- addRibbon([[0,4],[5,4],[10,5],[15,8],[20,12],[26,15]],2.6,dirt,.03);
- addRibbon([[0,4],[-5,5],[-11,8],[-17,12],[-23,15]],2.6,dirt,.03);
- addRibbon([[-1,-12],[-8,-15],[-15,-17],[-22,-21]],2.4,dirt,.03);
- addRibbon([[1,-12],[8,-15],[15,-18],[22,-22]],2.4,dirt,.03);
- // Central school forecourt
- const court=new THREE.Mesh(new THREE.CircleGeometry(8,48),material("#b8a27c"));court.rotation.x=-Math.PI/2;court.position.set(0,.012,-12);scene.add(court);
- // River to the right of the village and timber footbridge
- const riverPts=[];for(let i=0;i<=22;i++)riverPts.push([48+Math.sin(i*.34)*5,-78+i*7]);
- addRibbon(riverPts,8.5,material("#5e9392",.22,.08),-.005);
- const bridge=new THREE.Group();bridge.position.set(48,.04,-2);scene.add(bridge);
- box(bridge,5.8,.38,18,material("#846447"),0,.2,0);
- for(const side of [-1,1]){box(bridge,.2,1.05,18,material("#5c412e"),side*2.65,.8,0);for(let z=-8;z<=8;z+=2)box(bridge,.2,.7,.22,material("#5c412e"),side*2.65,1.25,z)}
- // Village architecture is intentionally close to the spawn and central path.
- createHouse(0,-20,.98,"#d8c7a7","青溪书塾");
- createHouse(-15,-13,.82,"#d3c09a","茶舍");
- createHouse(15,-13,.82,"#d4c29f","村中人家");
- createHouse(-20,-34,.72,"#d5c29e","村中人家");
- createHouse(20,-35,.72,"#d7c7a8","清风客栈");
- createHouse(-19,18,.67,"#d0bc96","村中人家");
- createHouse(19,20,.67,"#d4c29f","村中人家");
- createStall(-7,3,"#9f4939");createStall(7,3,"#60784f");createPagoda(36,-52);createVillageGate();
- // Vegetation frames the village without blocking the central camera view.
- for(let i=0;i<13;i++)createBamboo(-43+Math.random()*11,-36+Math.random()*54);
- for(let i=0;i<56;i++){
-  const x=-82+Math.random()*145,z=-78+Math.random()*140;
-  if(Math.abs(x)<27&&z>-40&&z<30)continue;
-  if(x>34&&z>-40&&z<30)continue;
-  createTree(x,z,.78+Math.random()*.66);
- }
- // Small pond, shoreline and water rings
- const pond=new THREE.Mesh(new THREE.CircleGeometry(5.7,40),material("#6c9a91",.2,.05));pond.rotation.x=-Math.PI/2;pond.position.set(-41,.012,39);scene.add(pond);
- const bank=new THREE.Mesh(new THREE.RingGeometry(5.7,7.1,40),material("#9a9275"));bank.rotation.x=-Math.PI/2;bank.position.set(-41,.018,39);scene.add(bank);
- for(let i=0;i<3;i++){const ring=new THREE.Mesh(new THREE.RingGeometry(.28,.4,28),new THREE.MeshBasicMaterial({color:"#c5e0ce",transparent:true,opacity:.4,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.set(-42,.035,38);scene.add(ring);ripples.push({mesh:ring,phase:i*2.2})}
- // Lanterns and little square details
- createLantern(-5,-5);createLantern(5,-5,"#9c4938");createLantern(-5,12,"#9c4938");createLantern(18,8,"#9b4c3c");
- for(let i=0;i<18;i++){const x=-16+Math.random()*32,z=-24+Math.random()*38;if(Math.abs(x)<3&&z>14)continue;const pebble=new THREE.Mesh(new THREE.CylinderGeometry(.1,.14,.07,7),material("#9b927e"));pebble.position.set(x,.035,z);scene.add(pebble)}
- createBirds();
- // Start the learner in the central lane with the teacher and school directly ahead.
- createHumanoid("Học trò",0,23,"#8a6046","#29231f",true);
- const teacher=createHumanoid("Thầy đồ",0,7,"#63785e","#493629");teacher.id="teacher";
- const merchant=createHumanoid("Bác bán hàng",9,2,"#92513d","#34251e");merchant.id="merchant";
- const courier=createHumanoid("Người đưa thư",-11,13,"#536d86","#30271f");courier.id="courier";
- clock=new THREE.Clock();cameraYaw=0;cameraPitch=.23;cameraDistance=10.5;
- setupMouseControls();
-}
-function setupMouseControls(){
- const canvas=renderer.domElement;
- canvas.addEventListener("contextmenu",e=>e.preventDefault());
- let gesture=null;
- canvas.addEventListener("pointerdown",e=>{
-  if(!$("modalRoot").classList.contains("hidden"))return;
-  if(e.button!==0&&e.button!==2)return;
-  e.preventDefault();
-  gesture={button:e.button,startX:e.clientX,startY:e.clientY,lastX:e.clientX,lastY:e.clientY,moved:false};
-  canvas.setPointerCapture(e.pointerId);
-  if(e.button===2){dragging=true;canvas.style.cursor="grabbing"}
- });
- canvas.addEventListener("pointermove",e=>{
-  if(!gesture)return;
-  const dx=e.clientX-gesture.lastX,dy=e.clientY-gesture.lastY;
-  const total=Math.hypot(e.clientX-gesture.startX,e.clientY-gesture.startY);
-  gesture.lastX=e.clientX;gesture.lastY=e.clientY;
-  if(gesture.button===2||total>5){
-   gesture.moved=true;dragging=true;canvas.style.cursor="grabbing";
-   cameraYaw-=dx*.0068;
-   cameraPitch=THREE.MathUtils.clamp(cameraPitch+dy*.0042,-.08,.72);
-  }
- });
- const finish=e=>{
-  if(!gesture)return;
-  const g=gesture;gesture=null;dragging=false;canvas.style.cursor="crosshair";
-  if(g.button===0&&!g.moved){handleWorldClick(e)}
- };
- canvas.addEventListener("pointerup",finish);
- canvas.addEventListener("pointercancel",()=>{gesture=null;dragging=false;canvas.style.cursor="crosshair"});
- canvas.addEventListener("lostpointercapture",()=>{gesture=null;dragging=false;canvas.style.cursor="crosshair"});
- canvas.addEventListener("wheel",e=>{e.preventDefault();cameraDistance=THREE.MathUtils.clamp(cameraDistance+Math.sign(e.deltaY)*.85,5.5,17)},{passive:false});
-}
-function clickedEntity(event){
- const rect=renderer.domElement.getBoundingClientRect();pointer.x=((event.clientX-rect.left)/rect.width)*2-1;pointer.y=-((event.clientY-rect.top)/rect.height)*2+1;
- raycaster.setFromCamera(pointer,camera);
- const hits=raycaster.intersectObjects(scene.children,true);
- for(const h of hits){let o=h.object;while(o){if(o.userData&&o.userData.entity&&o.userData.entity.id)return o.userData.entity;o=o.parent}}
- return null;
-}
-function handleWorldClick(e){
- const entity=clickedEntity(e);
- if(entity){moveToNPC(entity);return}
- const rect=renderer.domElement.getBoundingClientRect();pointer.x=((e.clientX-rect.left)/rect.width)*2-1;pointer.y=-((e.clientY-rect.top)/rect.height)*2+1;raycaster.setFromCamera(pointer,camera);
- const point=new THREE.Vector3();if(raycaster.ray.intersectPlane(groundPlane,point)){const now=performance.now();runTarget=now-lastClick<330;lastClick=now;moveTarget=new THREE.Vector3(THREE.MathUtils.clamp(point.x,-82,82),0,THREE.MathUtils.clamp(point.z,-82,82));pendingNpc=null;showPrompt(runTarget?"Chạy đến điểm đã chọn":"Đi đến điểm đã chọn");}
-}
-function moveToNPC(npc){
- const d=player.root.position.distanceTo(npc.root.position);
- if(d<4.2){openLesson(npc);return}
- const dir=player.root.position.clone().sub(npc.root.position).setY(0).normalize();
- moveTarget=npc.root.position.clone().add(dir.multiplyScalar(2.3));moveTarget.y=0;pendingNpc=npc;runTarget=false;showPrompt("Đang đi tới "+npc.name+"…");
-}
-function showPrompt(text){$("prompt").textContent=text;$("prompt").classList.add("show");clearTimeout(showPrompt.timer);showPrompt.timer=setTimeout(()=>$("prompt").classList.remove("show"),1800)}
-function openLesson(npc){
- const task=tasks.find(t=>t.npc===npc.id);if(!task)return;
- if(profile.done.includes(task.id)){simpleDialog(npc.name,"Con đã hoàn thành bài học này. Hãy mở sổ học vấn để ôn lại nhé.");return}
- const index=tasks.indexOf(task);if(tasks.slice(0,index).some(t=>!profile.done.includes(t.id))){simpleDialog(npc.name,"Con hãy hoàn thành bài học trước rồi quay lại gặp ta.");return}
- dialogueTask=task;quizLocked=false;
- const root=$("modalRoot");root.classList.remove("hidden");root.innerHTML='<section class="modal"><div class="sub">ĐỐI THOẠI · '+npc.name.toUpperCase()+'</div><h2>'+task.title+'</h2><div class="chinese">'+task.hanzi+'</div><div class="pinyin">'+task.pinyin+'</div><div class="translation">'+task.meaning+'</div><button class="secondary" id="listenBtn">🔊 Nghe phát âm tiếng Trung</button><p id="question">'+task.question+'</p><div id="choices"></div><div class="row"><button class="secondary" id="closeLesson">Để lát nữa</button></div></section>';
- $("listenBtn").onclick=()=>speak(task.hanzi);$("closeLesson").onclick=closeModal;
- task.choices.forEach((v,i)=>{const b=document.createElement("button");b.className="choice";b.textContent=String.fromCharCode(65+i)+". "+v;b.onclick=()=>answer(i);$("choices").appendChild(b)});
-}
-function answer(i){
- if(quizLocked)return;quizLocked=true;const task=dialogueTask,buttons=[...document.querySelectorAll("#choices .choice")];buttons.forEach((b,j)=>{b.disabled=true;if(j===task.answer)b.classList.add("correct");else if(j===i)b.classList.add("wrong")});
- $("question").textContent=i===task.answer?"Chính xác! "+task.explain:"Chưa đúng. "+task.explain;
- const btn=document.createElement("button");btn.className="primary";btn.textContent=i===task.answer?"Nhận điểm học vấn":"Thử lại";btn.onclick=()=>{if(i===task.answer){profile.done.push(task.id);profile.xp=(profile.xp||0)+task.xp;profile.learned.push(task.id);save();closeModal();toast("+"+task.xp+" điểm học vấn · Bài học đã hoàn thành")}else{closeModal();const n=npcs.find(x=>x.id===task.npc);openLesson(n)}};$("choices").appendChild(btn);
-}
-function simpleDialog(title,message){const root=$("modalRoot");root.classList.remove("hidden");root.innerHTML='<section class="modal"><div class="sub">THÔN THANH KHÊ · 青溪村</div><h2>'+title+'</h2><p>'+message+'</p><div class="row"><button class="primary" id="simpleClose">Đóng</button></div></section>';$("simpleClose").onclick=closeModal}
-function closeModal(){$("modalRoot").classList.add("hidden");$("modalRoot").innerHTML="";dialogueTask=null;quizLocked=false}
-function showQuests(){
- const rows=tasks.map((t,i)=>'<div style="padding:12px 0;border-bottom:1px solid #ffffff1a"><div style="font-size:14px;color:#f0deb6">'+(profile.done.includes(t.id)?"✓ ":"○ ")+(i+1)+". "+t.title+'</div><div style="font:11px Arial,sans-serif;color:#bdb39f;margin-top:5px">'+npcName(t.npc)+' · '+(profile.done.includes(t.id)?"Đã hoàn thành":"Chưa hoàn thành")+'</div></div>').join("");
- const root=$("modalRoot");root.classList.remove("hidden");root.innerHTML='<section class="modal"><div class="sub">SỔ KHOA CỬ · 任务</div><h2>Hành trình học vấn</h2><p>Hoàn thành thử thách bằng cách vận dụng tiếng Trung trong đời sống tại thôn làng.</p>'+rows+'<div class="row"><button class="primary" id="closeQ">Đóng</button></div></section>';$("closeQ").onclick=closeModal;
-}
-function showBook(){
- const words=[["你好","Nǐ hǎo","Xin chào","teacher"],["我要一个包子。","Wǒ yào yí ge bāozi.","Tôi muốn một chiếc bánh bao.","merchant"],["谢谢","Xièxie","Cảm ơn","courier"]];
- const rows=words.map(w=>'<div style="padding:12px 0;border-bottom:1px solid #ffffff19;opacity:'+(profile.done.includes(w[3])?"1":".46")+'"><div class="chinese" style="font-size:23px">'+w[0]+'</div><div class="pinyin">'+w[1]+'</div><div class="translation">'+(profile.done.includes(w[3])?w[2]:"Chưa mở khóa · hoàn thành nhiệm vụ để học")+'</div><button class="secondary" data-say="'+w[0]+'">🔊 Nghe</button></div>').join("");
- const root=$("modalRoot");root.classList.remove("hidden");root.innerHTML='<section class="modal"><div class="sub">SỔ HỌC VẤN · 学习手册</div><h2>Từ vựng đã học</h2><p>Những từ và câu con đã gặp trên hành trình.</p>'+rows+'<div class="row"><button class="primary" id="closeB">Đóng sổ</button></div></section>';
- document.querySelectorAll("[data-say]").forEach(b=>b.onclick=()=>speak(b.dataset.say));$("closeB").onclick=closeModal;
-}
-function startGame(reset=false){
- const name=($("playerInput").value||"Học trò").trim().slice(0,18)||"Học trò";
- if(reset||!profile)profile={name:name,xp:0,done:[],learned:[],createdAt:Date.now()};
- else profile.name=name;
- profile.done=Array.isArray(profile.done)?profile.done:[];profile.learned=Array.isArray(profile.learned)?profile.learned:[];
- save();$("modalRoot").classList.add("hidden");$("modalRoot").innerHTML="";started=true;toast("Chào mừng "+name+" đến Thôn Thanh Khê!");
-}
-$("startBtn").onclick=()=>startGame(false);$("resetBtn").onclick=()=>{profile=null;localStorage.removeItem(SAVE_KEY);$("playerInput").value="";startGame(true)};
-$("questBtn").onclick=showQuests;$("bookBtn").onclick=showBook;
-$("soundBtn").onclick=()=>{soundOn=!soundOn;$("soundBtn").textContent=soundOn?"♪ Âm thanh":"♪ Tắt tiếng";if(!soundOn&&window.speechSynthesis)window.speechSynthesis.cancel()};
-$("touchInteract").onclick=()=>interactNearest();
-if(profile){$("playerInput").value=profile.name||"";$("startBtn").textContent="Tiếp tục hành trình →";profile.done=Array.isArray(profile.done)?profile.done:[];profile.learned=Array.isArray(profile.learned)?profile.learned:[];refreshHUD()}
-window.addEventListener("keydown",e=>{if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"].includes(e.code))e.preventDefault();keys.add(e.code);if(e.code==="KeyE"&&!e.repeat&&started)interactNearest();if(e.code==="Escape"&&!$("modalRoot").classList.contains("hidden"))closeModal()});
-window.addEventListener("keyup",e=>keys.delete(e.code));
-document.querySelectorAll(".touchKey").forEach(b=>{const k=b.dataset.key;const down=e=>{e.preventDefault();keys.add(k)},up=e=>{e.preventDefault();keys.delete(k)};b.addEventListener("pointerdown",down);b.addEventListener("pointerup",up);b.addEventListener("pointercancel",up);b.addEventListener("pointerleave",up)});
-function interactNearest(){let best=null,dmin=4.3;for(const n of npcs){const d=player.root.position.distanceTo(n.root.position);if(d<dmin){dmin=d;best=n}}if(best)openLesson(best);else toast("Hãy đến gần một NPC hoặc nhấp trực tiếp vào họ.")}
-function movePlayer(dt){
- if(!started||!$("modalRoot").classList.contains("hidden"))return;
- let x=(keys.has("KeyD")||keys.has("ArrowRight")?1:0)-(keys.has("KeyA")||keys.has("ArrowLeft")?1:0);
- let z=(keys.has("KeyS")||keys.has("ArrowDown")?1:0)-(keys.has("KeyW")||keys.has("ArrowUp")?1:0);
- let manual=Math.hypot(x,z)>0;
- if(manual){moveTarget=null;pendingNpc=null;x/=Math.hypot(x,z);z/=Math.hypot(x,z)}
- else if(moveTarget){
-  const dx=moveTarget.x-player.root.position.x,dz=moveTarget.z-player.root.position.z,len=Math.hypot(dx,dz);
-  if(len<.45){moveTarget=null;if(pendingNpc){const n=pendingNpc;pendingNpc=null;openLesson(n)}}
-  else{x=dx/len;z=dz/len}
- }
- const walking=manual||!!moveTarget;
- if(walking){
-  const forward=new THREE.Vector3(Math.sin(cameraYaw),0,-Math.cos(cameraYaw));
-  const right=new THREE.Vector3(Math.cos(cameraYaw),0,Math.sin(cameraYaw));
-  const dir=right.multiplyScalar(x).add(forward.multiplyScalar(-z)).normalize();
-  // Keyboard W is forward; click-to-move already supplies world-space direction.
-  let vx,vz;
-  if(manual){vx=dir.x;vz=dir.z}else{vx=x;vz=z}
-  const run=manual?(keys.has("ShiftLeft")||keys.has("ShiftRight")):runTarget;
-  const speed=run?8.1:4.7;
-  const nx=player.root.position.x+vx*speed*dt,nz=player.root.position.z+vz*speed*dt;
-  let blocked=false;for(const c of colliders){if(Math.hypot(nx-c.x,nz-c.z)<c.r){blocked=true;break}}
-  if(!blocked){player.root.position.x=THREE.MathUtils.clamp(nx,-84,84);player.root.position.z=THREE.MathUtils.clamp(nz,-84,84)}
-  const targetYaw=Math.atan2(vx,-vz);player.root.rotation.y=THREE.MathUtils.lerp(player.root.rotation.y,targetYaw,Math.min(1,dt*12));
-  const t=clock.elapsedTime*(run?15:10);player.legs[0].rotation.x=Math.sin(t)*.72;player.legs[1].rotation.x=-Math.sin(t)*.72;player.arms[0].rotation.x=-Math.sin(t)*.38;player.arms[1].rotation.x=Math.sin(t)*.38;player.torso.position.y=1.32+Math.abs(Math.sin(t*2))*.035;
- }else{player.legs.forEach(p=>p.rotation.x=THREE.MathUtils.damp(p.rotation.x,0,9,dt));player.arms.forEach(p=>p.rotation.x=THREE.MathUtils.damp(p.rotation.x,0,9,dt));player.torso.position.y=THREE.MathUtils.damp(player.torso.position.y,1.32,8,dt)}
-}
-function updateCamera(dt){
- const horizontal=cameraDistance*Math.cos(cameraPitch);
- const offset=new THREE.Vector3(Math.sin(cameraYaw)*horizontal,cameraDistance*Math.sin(cameraPitch)+1.3,Math.cos(cameraYaw)*horizontal);
- const target=player.root.position.clone().add(offset);
- camera.position.lerp(target,1-Math.exp(-dt*5));
- camera.lookAt(player.root.position.clone().add(new THREE.Vector3(0,1.45,0)));
-}
-function updateWorld(dt){
- const t=clock.elapsedTime;
- decor.forEach(d=>{if(d.type==="lantern")d.object.rotation.z=Math.sin(t*1.2+d.phase)*.045});
- birds.forEach(b=>{b.g.position.set(b.origin.x+Math.sin(t*.28+b.phase)*5,b.origin.y+Math.sin(t*1.1+b.phase)*.8,b.origin.z+Math.cos(t*.25+b.phase)*4);const flap=Math.sin(t*9+b.phase)*.45;b.wings[0].rotation.z=flap;b.wings[1].rotation.z=-flap});
- ripples.forEach(r=>{const q=(t*.18+r.phase*.31)%1;r.mesh.scale.setScalar(.6+q*2.7);r.mesh.material.opacity=(1-q)*.35});
- npcs.forEach((n,i)=>{const bob=Math.sin(t*1.4+n.phase)*.025;n.rig.position.y=bob;n.arms[0].rotation.x=Math.sin(t*.9+n.phase)*.06;n.arms[1].rotation.x=-Math.sin(t*.8+n.phase)*.06});
- const near=npcs.reduce((best,n)=>{const d=player.root.position.distanceTo(n.root.position);return d<4.8&&(!best||d<best.d)?{n,d}:best},null);
- npcs.forEach(n=>{if(n.marker)n.marker.visible=!!near&&near.n===n});
-}
-function animate(){requestAnimationFrame(animate);if(!renderer)return;const dt=Math.min(clock.getDelta(),.04);movePlayer(dt);updateCamera(dt);updateWorld(dt);renderer.render(scene,camera)}
-window.addEventListener("resize",()=>{if(!camera||!renderer)return;camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.45))});
-try{makeWorld();$("loading").classList.add("hidden");animate()}catch(err){console.error(err);$("loading").innerHTML="Không thể tải thế giới 3D<small>"+String(err)+"</small>"}
-</script>
+<!-- HUD -->
+<div id="hud" class="panel hidden">
+  <div id="hud-name">Học trò</div>
+  <div id="hud-rank">学童</div>
+  <div id="hud-xp">XP: 0</div>
+  <div id="xp-bar"><div id="xp-fill"></div></div>
+  <div id="hud-buttons">
+    <button id="btn-study" type="button">📖 Sổ học tập</button>
+    <button id="btn-help" type="button">❓ Hướng dẫn</button>
+  </div>
+</div>
+
+<!-- Danh sách nhiệm vụ -->
+<div id="quest-panel" class="panel hidden">
+  <h2>📜 Nhiệm vụ</h2>
+  <ul id="quest-list"></ul>
+</div>
+
+<!-- Hướng dẫn điều khiển -->
+<div id="help-panel" class="panel hidden">
+  <b>Điều khiển:</b> Click trái vào đất để đi • Double-click để chạy •
+  Giữ chuột phải kéo để xoay camera • Lăn chuột để zoom •
+  WASD / mũi tên để đi • Shift để chạy • E để nói chuyện • Esc để đóng bảng
+</div>
+
+<!-- Chọn chất lượng đồ họa trong game -->
+<div id="quality-panel" class="panel hidden">
+  <span>Đồ họa:</span>
+  <button type="button" data-quality="low">Thấp</button>
+  <button type="button" data-quality="medium" class="active">Trung</button>
+  <button type="button" data-quality="high">Cao</button>
+</div>
+
+<!-- Hội thoại / bài học -->
+<div id="dialogue-panel" class="panel hidden">
+  <h2 id="dialogue-npc">Người làng</h2>
+  <p id="dialogue-text"></p>
+  <div id="dialogue-lesson" class="hidden">
+    <p id="dialogue-hanzi"></p>
+    <p id="dialogue-pinyin"></p>
+    <p id="dialogue-meaning"></p>
+    <p id="dialogue-example"></p>
+    <p id="dialogue-question"></p>
+    <div id="dialogue-options"></div>
+  </div>
+  <div id="dialogue-actions">
+    <button id="btn-listen" type="button">🔊 Nghe phát âm</button>
+    <button id="btn-close-dialogue" type="button" class="secondary">Đóng (Esc)</button>
+  </div>
+</div>
+
+<!-- Sổ học tập -->
+<div id="study-panel" class="panel hidden">
+  <div id="study-content"></div>
+  <div style="text-align:right; margin-top:10px;">
+    <button id="btn-close-study" type="button" class="secondary">Đóng (Esc)</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Điều khiển cảm ứng -->
+<div id="mobile-controls">
+  <div id="joystick"><div id="stick"></div></div>
+  <button id="btn-e" type="button">E</button>
+</div>
+
+<!-- Màn hình bắt đầu -->
+<div id="start-screen">
+  <div id="start-card" class="panel">
+    <div class="seal">漢</div>
+    <h1>汉林记</h1>
+    <h2>HÁN LÂM KÝ</h2>
+    <p>Chào mừng đến làng Thanh Khê (青溪村)! Bạn là một thư sinh trẻ bắt đầu
+    hành trình học tiếng Trung và thi đỗ khoa cử: từ 学童 đến 进士.
+    Hãy trò chuyện với thầy đồ, cô bán bánh và anh đưa thư trong làng.</p>
+    <label for="player-name"><b>Tên nhân vật của bạn</b></label>
+    <input id="player-name" type="text" maxlength="20" placeholder="Ví dụ: Quang Vinh" autocomplete="off">
+    <p style="margin:4px 0;">Chất lượng đồ họa:</p>
+    <div id="quality-row">
+      <button type="button" data-quality="low">Thấp</button>
+      <button type="button" data-quality="medium" class="active">Trung</button>
+      <button type="button" data-quality="high">Cao</button>
+    </div>
+    <button id="btn-start" type="button">▶ Bắt đầu hành trình</button>
+    <div class="font-test">
+      <p>Tiếng Việt đầy đủ dấu: ă â ê ô ơ ư đ. Hành trình học tập bắt đầu từ những chữ cái đầu tiên.</p>
+      <p>你好！欢迎来到汉林记。我要学习中文。谢谢老师！</p>
+      <p>Nǐ hǎo! Huānyíng lái dào Hàn Lín Jì. Wǒ yào xuéxí Zhōngwén. Xièxie lǎoshī!</p>
+    </div>
+    <p style="font-size:12px; opacity:0.75;">© Nông Quang Vinh</p>
+  </div>
+</div>
+
+<div id="copyright">© Nông Quang Vinh</div>
+
+<script type="module" src="./js/main.js"></script>
 </body>
 </html>
