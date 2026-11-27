@@ -92,7 +92,7 @@ button,input{font:inherit}
 </header>
 <section id="mission"><div class="eyebrow">Nhiệm vụ hiện tại</div><div id="missionTitle">Tìm thầy đồ</div><div id="missionDesc">Hãy đến gần thầy đồ trong sân thôn học để bắt đầu bài học đầu tiên.</div><div id="missionHint">Nhấp vào thầy đồ để tự đi tới và trò chuyện.</div></section>
 <div id="location">THÔN THANH KHÊ · 青溪村</div>
-<div id="controls"><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> Di chuyển · <span class="key">Shift</span> Chạy · Kéo chuột phải: quay · Lăn chuột: zoom · Nhấp đúp: chạy tới</div>
+<div id="controls"><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> Di chuyển · <span class="key">Shift</span> Chạy · Kéo chuột trái/phải: quay · Lăn chuột: zoom · Nhấp đúp: chạy tới</div>
 <div id="prompt"></div>
 <div id="touchPad"><button class="touchKey" data-key="KeyW">↑</button><button class="touchKey" data-key="KeyA">←</button><button class="touchKey" data-key="KeyS">↓</button><button class="touchKey" data-key="KeyD">→</button></div>
 <button id="touchInteract">E</button>
@@ -132,7 +132,7 @@ function refreshHUD(){
  const next=tasks.find(t=>!profile.done.includes(t.id));
  $("missionTitle").textContent=next?next.title:"Đã hoàn thành nhiệm vụ mở đầu";
  $("missionDesc").textContent=next?"Hãy tìm "+npcName(next.npc)+" và nhấp vào nhân vật đó để trò chuyện.":"Con đã hoàn thành các bài học đầu tiên. Hãy mở sổ học vấn để ôn tập.";
- $("missionHint").textContent=next?"Nhấp NPC: tự đi tới · Nhấp đúp mặt đất: chạy tới.":"Tiến trình được lưu trên thiết bị này.";
+ $("missionHint").textContent=next?"Nhấp NPC: tự đi tới · Kéo chuột: quay trái/phải · Nhấp đúp: chạy.":"Tiến trình được lưu trên thiết bị này.";
 }
 function npcName(id){return ({teacher:"thầy đồ",merchant:"bác bán hàng",courier:"người đưa thư"})[id]||"người trong làng"}
 function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2300)}
@@ -296,78 +296,107 @@ function createBirds(){
  }
 }
 function makeWorld(){
- scene=new THREE.Scene();scene.background=new THREE.Color("#a9c5c3");scene.fog=new THREE.Fog("#a9c5c3",100,205);
- camera=new THREE.PerspectiveCamera(57,innerWidth/innerHeight,.1,280);
- renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:"high-performance"});renderer.setPixelRatio(Math.min(devicePixelRatio,1.45));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.14;$("game").appendChild(renderer.domElement);
- scene.add(new THREE.HemisphereLight("#edf4e8","#566a4e",1.65));
- const sun=new THREE.DirectionalLight("#ffe1b1",2.6);sun.position.set(-35,55,28);sun.castShadow=true;sun.shadow.mapSize.set(1536,1536);sun.shadow.camera.left=-58;sun.shadow.camera.right=58;sun.shadow.camera.top=58;sun.shadow.camera.bottom=-58;sun.shadow.bias=-.00025;sun.shadow.normalBias=.025;scene.add(sun);
- const groundTex=texture("grass");groundTex.repeat.set(12,12);
- const ground=new THREE.Mesh(new THREE.PlaneGeometry(180,180),new THREE.MeshStandardMaterial({map:groundTex,roughness:1,color:"#d8dfc0"}));ground.rotation.x=-Math.PI/2;ground.position.y=-.03;ground.receiveShadow=true;scene.add(ground);
- // Mountains frame the valley.
- for(let i=0;i<20;i++){const h=20+Math.random()*20,r=11+Math.random()*16;const m=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),material(i%3?"#7c9885":"#698675"));m.scale.set(r,h,r*.85);m.position.set(-95+i*10,-7,-105-(i%4)*8);m.castShadow=false;scene.add(m)}
- // Main dirt paths curve organically between village spaces.
- const dirt=texture("stone");dirt.repeat.set(2,6);
- addRibbon([[0,18],[0,10],[1,4],[-3,-2],[-9,-9],[-16,-15],[-22,-22],[-23,-31]],4.5,dirt,.04);
- addRibbon([[-2,2],[4,3],[10,5],[16,10],[22,16],[27,20]],3.1,dirt,.045);
- addRibbon([[-6,8],[-12,13],[-20,18],[-26,24]],2.7,dirt,.045);
- addRibbon([[-10,-10],[-7,-19],[-3,-29],[0,-41],[0,-57]],3,dirt,.04);
- // Winding river and footbridge.
- const riverPts=[];for(let i=0;i<=20;i++){riverPts.push([49+Math.sin(i*.37)*5,-72+i*7.1])}
- addRibbon(riverPts,9,material("#5b9291",.24,.1),.005);
- const bridge=new THREE.Group();bridge.position.set(48,.05,0);scene.add(bridge);box(bridge,5.8,.38,18,material("#806346"),0,.2,0);
- for(const side of [-1,1]){box(bridge,.22,1.12,18,material("#59412e"),side*2.65,.8,0);for(let z=-8;z<=8;z+=2)box(bridge,.22,.7,.22,material("#59412e"),side*2.65,1.25,z)}
- // Buildings are spaced around the paths, not scattered in the player's view.
- createHouse(-18,-18,1.05,"#d7c5a1","青溪书塾");
- createHouse(18,-20,.9,"#cfbd9b","村中人家");
- createHouse(-31,8,.8,"#d3c5a7","茶舍");
- createHouse(25,17,.82,"#d3c09a","村中人家");
- createHouse(-6,-42,.92,"#d9c9a9","清风客栈");
- createHouse(33,-2,.72,"#cbb58e","村中人家");
- createHouse(-37,-24,.68,"#d2c09d","村中人家");
- createStall(9,-1,"#a54d3c");createStall(14,4,"#60764d");createPagoda(43,-50);
- // Bamboo clusters and broadleaf trees ring the village.
- for(let i=0;i<13;i++)createBamboo(-47+Math.random()*13,-32+Math.random()*47);
- for(let i=0;i<60;i++){const x=-81+Math.random()*145,z=-80+Math.random()*146;if(Math.abs(x)<32&&Math.abs(z)<30)continue;if(x>37&&z>-45&&z<43)continue;createTree(x,z,.75+Math.random()*.72)}
- // Small pond, bank stones and animated ripple rings.
- const pond=new THREE.Mesh(new THREE.CircleGeometry(6.3,40),material("#6d9d95",.2,.04));pond.rotation.x=-Math.PI/2;pond.position.set(-42,.012,38);scene.add(pond);
- const bank=new THREE.Mesh(new THREE.RingGeometry(6.3,7.8,40),material("#a59a79"));bank.rotation.x=-Math.PI/2;bank.position.set(-42,.018,38);scene.add(bank);
- for(let i=0;i<3;i++){const ring=new THREE.Mesh(new THREE.RingGeometry(.3,.42,32),new THREE.MeshBasicMaterial({color:"#c3e0c9",transparent:true,opacity:.45,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.set(-43,.035,37);scene.add(ring);ripples.push({mesh:ring,phase:i*2.2})}
- // Lantern poles and small scenery around the central square.
- createLantern(-5,-14);createLantern(4,-12,"#a54b37");createLantern(-5,13,"#9a5438");createLantern(19,11,"#a54b37");
- for(let i=0;i<25;i++){const x=-25+Math.random()*51,z=-25+Math.random()*51;if(Math.abs(x)<4&&Math.abs(z)<5)continue;const stone=new THREE.Mesh(new THREE.CylinderGeometry(.12,.16,.08,7),material("#9c927b"));stone.position.set(x,.04,z);scene.add(stone)}
- // Animated birds give the skyline some life.
+ scene=new THREE.Scene();scene.background=new THREE.Color("#b8ccca");scene.fog=new THREE.Fog("#b8ccca",110,225);
+ camera=new THREE.PerspectiveCamera(56,innerWidth/innerHeight,.1,300);
+ renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:"high-performance"});
+ renderer.setPixelRatio(Math.min(devicePixelRatio,1.4));renderer.setSize(innerWidth,innerHeight);
+ renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+ renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
+ $("game").appendChild(renderer.domElement);
+ scene.add(new THREE.HemisphereLight("#edf4e8","#52684d",1.7));
+ const sun=new THREE.DirectionalLight("#ffe5bf",2.3);sun.position.set(-28,48,26);sun.castShadow=true;
+ sun.shadow.mapSize.set(1536,1536);sun.shadow.camera.left=-60;sun.shadow.camera.right=60;sun.shadow.camera.top=60;sun.shadow.camera.bottom=-60;sun.shadow.bias=-.00025;sun.shadow.normalBias=.025;scene.add(sun);
+ // Ground
+ const grass=texture("grass");grass.repeat.set(12,12);
+ const ground=new THREE.Mesh(new THREE.PlaneGeometry(190,190),new THREE.MeshStandardMaterial({map:grass,color:"#e1e3c5",roughness:1}));
+ ground.rotation.x=-Math.PI/2;ground.position.y=-.04;ground.receiveShadow=true;scene.add(ground);
+ // Mountain backdrop with layered foothills
+ for(let i=0;i<17;i++){
+  const x=-108+i*13.5,z=-88-(i%4)*9;
+  const h=19+(i%5)*3.8,w=15+(i%3)*3;
+  const hill=new THREE.Mesh(new THREE.SphereGeometry(1,18,14),material(i%3===0?"#6f8b78":i%3===1?"#809985":"#91a58d"));
+  hill.scale.set(w,h,w*.72);hill.position.set(x,h*.34,z);hill.castShadow=false;scene.add(hill);
+ }
+ // Main village lane: narrower, curved, and connected to the school and market.
+ const dirt=texture("stone");dirt.repeat.set(2,8);
+ addRibbon([[0,31],[0,23],[0,16],[0,9],[1,2],[0,-5],[-2,-12],[-1,-20],[0,-31],[0,-47]],3.4,dirt,.025);
+ addRibbon([[0,4],[5,4],[10,5],[15,8],[20,12],[26,15]],2.6,dirt,.03);
+ addRibbon([[0,4],[-5,5],[-11,8],[-17,12],[-23,15]],2.6,dirt,.03);
+ addRibbon([[-1,-12],[-8,-15],[-15,-17],[-22,-21]],2.4,dirt,.03);
+ addRibbon([[1,-12],[8,-15],[15,-18],[22,-22]],2.4,dirt,.03);
+ // Central school forecourt
+ const court=new THREE.Mesh(new THREE.CircleGeometry(8,48),material("#b8a27c"));court.rotation.x=-Math.PI/2;court.position.set(0,.012,-12);scene.add(court);
+ // River to the right of the village and timber footbridge
+ const riverPts=[];for(let i=0;i<=22;i++)riverPts.push([48+Math.sin(i*.34)*5,-78+i*7]);
+ addRibbon(riverPts,8.5,material("#5e9392",.22,.08),-.005);
+ const bridge=new THREE.Group();bridge.position.set(48,.04,-2);scene.add(bridge);
+ box(bridge,5.8,.38,18,material("#846447"),0,.2,0);
+ for(const side of [-1,1]){box(bridge,.2,1.05,18,material("#5c412e"),side*2.65,.8,0);for(let z=-8;z<=8;z+=2)box(bridge,.2,.7,.22,material("#5c412e"),side*2.65,1.25,z)}
+ // Village architecture is intentionally close to the spawn and central path.
+ createHouse(0,-20,.98,"#d8c7a7","青溪书塾");
+ createHouse(-15,-13,.82,"#d3c09a","茶舍");
+ createHouse(15,-13,.82,"#d4c29f","村中人家");
+ createHouse(-20,-34,.72,"#d5c29e","村中人家");
+ createHouse(20,-35,.72,"#d7c7a8","清风客栈");
+ createHouse(-19,18,.67,"#d0bc96","村中人家");
+ createHouse(19,20,.67,"#d4c29f","村中人家");
+ createStall(-7,3,"#9f4939");createStall(7,3,"#60784f");createPagoda(36,-52);createVillageGate();
+ // Vegetation frames the village without blocking the central camera view.
+ for(let i=0;i<13;i++)createBamboo(-43+Math.random()*11,-36+Math.random()*54);
+ for(let i=0;i<56;i++){
+  const x=-82+Math.random()*145,z=-78+Math.random()*140;
+  if(Math.abs(x)<27&&z>-40&&z<30)continue;
+  if(x>34&&z>-40&&z<30)continue;
+  createTree(x,z,.78+Math.random()*.66);
+ }
+ // Small pond, shoreline and water rings
+ const pond=new THREE.Mesh(new THREE.CircleGeometry(5.7,40),material("#6c9a91",.2,.05));pond.rotation.x=-Math.PI/2;pond.position.set(-41,.012,39);scene.add(pond);
+ const bank=new THREE.Mesh(new THREE.RingGeometry(5.7,7.1,40),material("#9a9275"));bank.rotation.x=-Math.PI/2;bank.position.set(-41,.018,39);scene.add(bank);
+ for(let i=0;i<3;i++){const ring=new THREE.Mesh(new THREE.RingGeometry(.28,.4,28),new THREE.MeshBasicMaterial({color:"#c5e0ce",transparent:true,opacity:.4,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.set(-42,.035,38);scene.add(ring);ripples.push({mesh:ring,phase:i*2.2})}
+ // Lanterns and little square details
+ createLantern(-5,-5);createLantern(5,-5,"#9c4938");createLantern(-5,12,"#9c4938");createLantern(18,8,"#9b4c3c");
+ for(let i=0;i<18;i++){const x=-16+Math.random()*32,z=-24+Math.random()*38;if(Math.abs(x)<3&&z>14)continue;const pebble=new THREE.Mesh(new THREE.CylinderGeometry(.1,.14,.07,7),material("#9b927e"));pebble.position.set(x,.035,z);scene.add(pebble)}
  createBirds();
- // Character and NPCs.
- createHumanoid("Học trò",0,12,"#405d57","#29231f",true);
- const teacher=createHumanoid("Thầy đồ",-8,-3,"#65785f","#46342a");teacher.id="teacher";
- const merchant=createHumanoid("Bác bán hàng",12,6,"#8d5140","#35271f");merchant.id="merchant";
- const courier=createHumanoid("Người đưa thư",-19,17,"#536b83","#302920");courier.id="courier";
- clock=new THREE.Clock();cameraYaw=0;cameraPitch=.25;cameraDistance=10;
- camera.position.set(0,6,22);camera.lookAt(0,1.5,12);
+ // Start the learner in the central lane with the teacher and school directly ahead.
+ createHumanoid("Học trò",0,23,"#8a6046","#29231f",true);
+ const teacher=createHumanoid("Thầy đồ",0,7,"#63785e","#493629");teacher.id="teacher";
+ const merchant=createHumanoid("Bác bán hàng",9,2,"#92513d","#34251e");merchant.id="merchant";
+ const courier=createHumanoid("Người đưa thư",-11,13,"#536d86","#30271f");courier.id="courier";
+ clock=new THREE.Clock();cameraYaw=0;cameraPitch=.23;cameraDistance=10.5;
  setupMouseControls();
 }
 function setupMouseControls(){
  const canvas=renderer.domElement;
  canvas.addEventListener("contextmenu",e=>e.preventDefault());
+ let gesture=null;
  canvas.addEventListener("pointerdown",e=>{
   if(!$("modalRoot").classList.contains("hidden"))return;
-  if(e.pointerType==="mouse"&&e.button===2){dragging=true;dragStart={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);canvas.style.cursor="grabbing";return}
-  if(e.button===0){dragStart={x:e.clientX,y:e.clientY,button:0};}
+  if(e.button!==0&&e.button!==2)return;
+  e.preventDefault();
+  gesture={button:e.button,startX:e.clientX,startY:e.clientY,lastX:e.clientX,lastY:e.clientY,moved:false};
+  canvas.setPointerCapture(e.pointerId);
+  if(e.button===2){dragging=true;canvas.style.cursor="grabbing"}
  });
  canvas.addEventListener("pointermove",e=>{
-  if(!dragging||!dragStart)return;
-  const dx=e.clientX-dragStart.x,dy=e.clientY-dragStart.y;dragStart.x=e.clientX;dragStart.y=e.clientY;
-  cameraYaw-=dx*.006;cameraPitch=THREE.MathUtils.clamp(cameraPitch+dy*.004,-.08,.78);
+  if(!gesture)return;
+  const dx=e.clientX-gesture.lastX,dy=e.clientY-gesture.lastY;
+  const total=Math.hypot(e.clientX-gesture.startX,e.clientY-gesture.startY);
+  gesture.lastX=e.clientX;gesture.lastY=e.clientY;
+  if(gesture.button===2||total>5){
+   gesture.moved=true;dragging=true;canvas.style.cursor="grabbing";
+   cameraYaw-=dx*.0068;
+   cameraPitch=THREE.MathUtils.clamp(cameraPitch+dy*.0042,-.08,.72);
+  }
  });
- const stop=()=>{dragging=false;dragStart=null;canvas.style.cursor="crosshair"};
- canvas.addEventListener("pointerup",e=>{
-  if(dragging){stop();return}
-  if(e.button!==0||!dragStart)return;
-  const distance=Math.hypot(e.clientX-dragStart.x,e.clientY-dragStart.y);dragStart=null;
-  if(distance<7)handleWorldClick(e);
- });
- canvas.addEventListener("pointercancel",stop);canvas.addEventListener("lostpointercapture",stop);
- canvas.addEventListener("wheel",e=>{e.preventDefault();cameraDistance=THREE.MathUtils.clamp(cameraDistance+Math.sign(e.deltaY)*.8,5.2,16)},{passive:false});
+ const finish=e=>{
+  if(!gesture)return;
+  const g=gesture;gesture=null;dragging=false;canvas.style.cursor="crosshair";
+  if(g.button===0&&!g.moved){handleWorldClick(e)}
+ };
+ canvas.addEventListener("pointerup",finish);
+ canvas.addEventListener("pointercancel",()=>{gesture=null;dragging=false;canvas.style.cursor="crosshair"});
+ canvas.addEventListener("lostpointercapture",()=>{gesture=null;dragging=false;canvas.style.cursor="crosshair"});
+ canvas.addEventListener("wheel",e=>{e.preventDefault();cameraDistance=THREE.MathUtils.clamp(cameraDistance+Math.sign(e.deltaY)*.85,5.5,17)},{passive:false});
 }
 function clickedEntity(event){
  const rect=renderer.domElement.getBoundingClientRect();pointer.x=((event.clientX-rect.left)/rect.width)*2-1;pointer.y=-((event.clientY-rect.top)/rect.height)*2+1;
