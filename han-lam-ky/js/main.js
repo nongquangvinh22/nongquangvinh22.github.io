@@ -85,8 +85,11 @@ function updateCamera(dt) {
   camTarget.lerp(desiredTarget, 1 - Math.pow(0.001, dt)); // mượt
   // Zoom mượt: lerp về mục tiêu thay vì nhảy ngay khi lăn chuột.
   camDist += (camDistTarget - camDist) * (1 - Math.pow(0.001, dt));
+  // Trong nhà thì kéo camera lại gần (tối đa 7.5 m) để không chui qua tường
+  // đối diện; mái + trần đã được ẩn bởi updateIndoor() nên nhìn xuyên được.
+  const maxDist = indoorBuilding ? 7.5 : Infinity;
   // Va chạm: kéo lại gần khi sắp xuyên nhà/tường; kéo vào nhanh, nhả ra mượt.
-  const effTarget = Math.min(camDist, cameraCollisionLimit());
+  const effTarget = Math.min(camDist, maxDist, cameraCollisionLimit());
   const effRate = effTarget < camDistEff ? 0.00001 : 0.001;
   camDistEff += (effTarget - camDistEff) * (1 - Math.pow(effRate, dt));
   const dist = Math.max(2.0, camDistEff); // tối thiểu 2 m: vẫn thấy rõ nhân vật
@@ -105,10 +108,49 @@ function updateCamera(dt) {
 const keys = new Set();
 let runHeld = false; // nút RUN (mobile): giữ để chạy
 let clickTarget = null;      // {x, z, run}
+let clickWaypoints = [];     // hàng đợi điểm trung gian (đi qua cầu, xem routeClickTarget)
 let pendingNpcId = null;
 let dialogueOpen = false;
 let currentDialogue = null;  // {npcId, quest}
 let listenText = '你好';
+
+// Tòa nhà người chơi đang đứng trong (trường học / trường thi): mái + trần
+// của tòa đó được ẩn để camera trên cao nhìn xuyên vào trong được, thay vì
+// bị mái che 60–70% màn hình (kiểm thử 27/11).
+let indoorBuilding = null;
+function updateIndoor() {
+  try {
+    if (!player || !env || typeof env.buildingAt !== 'function') return;
+    const p = player.group.position;
+    const b = env.buildingAt(p.x, p.z);
+    if (b !== indoorBuilding) {
+      if (indoorBuilding) {
+        if (indoorBuilding.roof) indoorBuilding.roof.visible = true;
+        if (indoorBuilding.ceil) indoorBuilding.ceil.visible = true;
+      }
+      indoorBuilding = b;
+      if (indoorBuilding) {
+        if (indoorBuilding.roof) indoorBuilding.roof.visible = false;
+        if (indoorBuilding.ceil) indoorBuilding.ceil.visible = false;
+      }
+    }
+  } catch (_err) { /* ẩn mái là phụ: không vỡ game */ }
+}
+
+// Click sang bờ bên kia sông thì đi qua cầu (22, 0) trước: đi thẳng sẽ đâm
+// vào dải sông (x 17.8–26.2, chỉ |z| ≤ 2.2 mới qua được) và kẹt ở bờ tây,
+// đúng như kiểm thử 27/11 ghi nhận. Đích thật nằm trong hàng đợi.
+const RIVER_X0 = 17.8, RIVER_X1 = 26.2;
+function routeClickTarget(tx, tz, run, npc) {
+  clickWaypoints = [];
+  const pos = player ? player.group.position : { x: 0, z: 0 };
+  const crosses = (pos.x < RIVER_X0 && tx > RIVER_X1) || (pos.x > RIVER_X1 && tx < RIVER_X0);
+  clickTarget = { x: tx, z: tz, run: !!run, npc: !!npc };
+  if (crosses) {
+    clickWaypoints.push(clickTarget);
+    clickTarget = { x: 22, z: 0, run: !!run, npc: false };
+  }
+}
 
 // Bảng mở có chặn di chuyển không? (hội thoại hoặc sổ học tập)
 function isStudyOpen() {
@@ -122,6 +164,7 @@ function isInputBlocked() { return dialogueOpen || isStudyOpen(); }
 function clearKeys() {
   keys.clear();
   clickTarget = null;
+  clickWaypoints = [];
   pendingNpcId = null;
   runHeld = false;
   if (typeof joyReset === 'function') joyReset();
@@ -149,6 +192,7 @@ document.addEventListener('visibilitychange', () => {
 function closeAllPanels() {
   document.getElementById('dialogue-panel').classList.add('hidden');
   document.getElementById('study-panel').classList.add('hidden');
+  document.getElementById('help-panel').classList.add('hidden');
   dialogueOpen = false;
   currentDialogue = null;
   clearKeys();
@@ -250,12 +294,12 @@ function handleGroundClick(e, run = false) {
   if (npc) {
     pendingNpcId = npc.id;
     const np = npc.group.position;
-    clickTarget = { x: np.x, z: np.z, run: false, npc: true };
+    routeClickTarget(np.x, np.z, false, true);
     showToast('Đang đi tới ' + npc.name + '…');
     return;
   }
   pendingNpcId = null;
-  clickTarget = { x: p.x, z: p.z, run };
+  routeClickTarget(p.x, p.z, run, false);
 }
 
 function isDescendant(root, obj) {
@@ -639,7 +683,11 @@ document.getElementById('btn-start').addEventListener('click', () => {
   player.setFacing(Math.PI); // quay mặt về phía Bắc, hướng vào làng
   started = true;
   document.getElementById('start-screen').classList.add('hidden');
-  ['hud', 'quest-panel', 'help-panel', 'quality-panel'].forEach((id) => {
+  // help-panel KHÔNG tự hiện: bắt đầu ở trạng thái ẩn (index.html đã có
+  // class hidden) để lần bấm đầu tiên vào nút Hướng dẫn là MỞ bảng, không
+  // phải tắt bảng đang hiện sẵn (lỗi kiểm thử 27/11: bấm Hướng dẫn không
+  // thấy bảng hiện ra). Nút btn-help vẫn toggle như cũ.
+  ['hud', 'quest-panel', 'quality-panel'].forEach((id) => {
     document.getElementById(id).classList.remove('hidden');
   });
   updateHUD(state);
@@ -692,29 +740,36 @@ function animate() {
       }
     }
 
-    // Click-to-move (NPC đang đi tuần thì cập nhật mục tiêu theo vị trí mới)
+    // Click-to-move (NPC đang đi tuần thì cập nhật mục tiêu theo vị trí mới).
+    // Đang đi theo hàng đợi (qua cầu) thì không ghi đè: hàng đợi chạy xong,
+    // clickTarget về null thì lần lặp sau sẽ đặt lại mục tiêu tới NPC.
     if (pendingNpcId) {
       const npc = npcs.find((n) => n.id === pendingNpcId);
       if (npc) {
         const np = npc.group.position;
         const dx = pos.x - np.x, dz = pos.z - np.z;
         const d = Math.hypot(dx, dz) || 1;
-        clickTarget = { x: np.x + (dx / d) * 1.8, z: np.z + (dz / d) * 1.8, run: false, npc: true };
+        if (!clickTarget && clickWaypoints.length === 0) {
+          routeClickTarget(np.x + (dx / d) * 1.8, np.z + (dz / d) * 1.8, false, true);
+        }
         if (Math.hypot(dx, dz) < 3.0) {
           openDialogue(pendingNpcId);
           pendingNpcId = null;
           clickTarget = null;
+          clickWaypoints = [];
         }
       } else pendingNpcId = null;
     }
 
     if (mx !== 0 || mz !== 0) {
       clickTarget = null; // phím / joystick ưu tiên hơn click
+      clickWaypoints = [];
     } else if (clickTarget) {
       const dx = clickTarget.x - pos.x, dz = clickTarget.z - pos.z;
       const d = Math.hypot(dx, dz);
       if (d < 0.35) {
-        clickTarget = null;
+        // Tới điểm trung gian (cầu) thì lấy điểm tiếp theo trong hàng đợi.
+        clickTarget = clickWaypoints.length ? clickWaypoints.shift() : null;
       } else {
         mx = dx / d; mz = dz / d;
         if (clickTarget.run) running = true;
@@ -740,6 +795,7 @@ function animate() {
     }
   }
 
+  updateIndoor(); // ẩn mái/trần tòa nhà đang đứng trong (nếu có)
   updateCamera(dt);
   renderer.render(scene, camera);
 }
