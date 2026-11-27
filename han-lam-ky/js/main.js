@@ -175,7 +175,10 @@ const RUN_SPEED = 7.6;
 
 window.addEventListener('keydown', (e) => {
   if (!started) return;
-  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+  // Chỉ bỏ qua phím khi đang gõ tên ở màn hình bắt đầu: ô tên đã ẩn sau khi
+  // vào game thì không được chặn phím nữa, dù focus có kẹt trong đó.
+  const startVisible = !document.getElementById('start-screen').classList.contains('hidden');
+  if (startVisible && e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
   if (e.code === 'Escape') { clearKeys(); closeAllPanels(); return; }
   if (isInputBlocked()) return; // đang đọc hội thoại / sổ: không nhận phím đi
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
@@ -682,6 +685,12 @@ document.getElementById('btn-start').addEventListener('click', () => {
   player = createPlayer(scene, { x: 0, z: 20 }, name);
   player.setFacing(Math.PI); // quay mặt về phía Bắc, hướng vào làng
   started = true;
+  // Nhả focus khỏi ô nhập tên: nếu focus còn kẹt trong INPUT thì mọi phím
+  // (W/A/S/D/E) đều bị bộ lọc keydown chặn lại và nhân vật không đi được
+  // (lỗi Vinh báo 27/11: ấn W không hoạt động).
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
   document.getElementById('start-screen').classList.add('hidden');
   // help-panel KHÔNG tự hiện: bắt đầu ở trạng thái ẩn (index.html đã có
   // class hidden) để lần bấm đầu tiên vào nút Hướng dẫn là MỞ bảng, không
