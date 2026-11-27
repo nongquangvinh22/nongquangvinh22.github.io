@@ -8,9 +8,9 @@ https://nongquangvinh22.github.io/han-lam-ky/
 
 ## Vertical slice hiện tại — làng Thanh Khê
 
-- Làng Thanh Khê: 8 nhà mái ngói cong, trường học, 4 sạp chợ, giếng, cầu gỗ qua sông, ruộng lúa, rừng trúc, cây, hoa, đèn lồng, chim bay, nước gợn, sương và ánh nắng.
+- Làng Thanh Khê: 8 nhà mái ngói cong (tường khung gỗ, cửa sổ chạm khắc, đầu hồi, sừng mái vểnh), trường học, trường thi, 4 sạp chợ + 1 sạp GLB, giếng, cầu gỗ qua sông, ruộng lúa có bù nhìn, rừng trúc, cây, hoa, đèn lồng, chim bay, nước gợn, sương và ánh nắng. Thêm: tháp 5 tầng (landmark phía Bắc), đình làng mái cong, dãy núi xa + đồi cỏ bao quanh, mây trôi, cổng làng 牌坊 2 đầu đường, bàn ghế/thùng/giỏ/hàng rào/đèn đá/bó rơm, lau sậy ven sông.
 - Nhân vật chính: thư sinh với áo dài, tóc búi, hoạt ảnh đi / chạy / đứng thở.
-- 7 NPC: Thầy Đồ Lâm, Cô Bán Bánh, Anh Đưa Thư, 3 học trò ngồi học trong lớp, Quan Khảo Thí ở trường thi.
+- 7 NPC: Thầy Đồ Lâm, Cô Bán Bánh, Anh Đưa Thư, 3 học trò ngồi học trong lớp, Quan Khảo Thí ở trường thi. Thêm 3 dân làng đi lại trong làng (Bà Lão Mai, Anh Nông Dân, Cô Gái Trẻ) và 1 con cáo đi dạo quanh rừng trúc (asset GLB có animation).
 - 4 nhiệm vụ học tiếng Trung: 你好 (Nǐ hǎo), 我要一个包子 (Wǒ yào yí gè bāozi), 谢谢 (Xièxie), hỏi đường 请问，去学校怎么走？ — có chữ Hán, Pinyin có dấu thanh, nghĩa tiếng Việt, câu ví dụ và nghe phát âm.
 - Trường học và trường thi đi vào được: cửa mở bằng E, bàn ghế, bảng đen, sách, bút lông, nghiên mực; trường thi có 6 bàn thi riêng, ngồi vào bàn để làm bài thi thăng cấp.
 - Giáo trình vỡ lòng Bài 0–5 trong Sổ học tập (tự chọn, không chặn nhiệm vụ 你好): Pinyin, 4 thanh điệu (nghe từng thanh mā/má/mǎ/mà/ma), thanh mẫu dễ/khó, vận mẫu và cấu tạo chữ, biến điệu. Chuẩn HSK 3.0 (các cấp 300/500/1.000/2.000/3.600/5.400/11.000 từ). Nội dung HSK 1 đang theo đề cương HSK 3.0, chưa phải danh sách đầy đủ đã kiểm chứng chuyên môn.
@@ -48,6 +48,13 @@ https://nongquangvinh22.github.io/han-lam-ky/
 
 ## Giới hạn hiện tại
 
-Đây vẫn là bản vertical slice. Tiến trình lưu cục bộ trong trình duyệt, chưa có đăng nhập trực tuyến / đồng bộ nhiều thiết bị. Nội dung bài học mới là phần mở đầu, chưa phải khóa HSK hoàn chỉnh. Mô hình 3D hiện được dựng bằng hình học thủ tục + texture vẽ bằng canvas trong code, chưa phải bộ asset nhân vật / kiến trúc thương mại.
+Đây vẫn là bản vertical slice. Tiến trình lưu cục bộ trong trình duyệt, chưa có đăng nhập trực tuyến / đồng bộ nhiều thiết bị. Nội dung bài học mới là phần mở đầu, chưa phải khóa HSK hoàn chỉnh. Một phần mô hình 3D đã dùng asset GLB có giấy phép (tháp, đình, cây, tre, đèn lồng, sạp chợ, đồ gỗ — xem `ASSETS.md`); nhà dân, nhân vật và phần lớn nội thất vẫn dựng bằng hình học thủ tục + texture vẽ bằng canvas trong code, vì chưa tìm được nhà kiểu Trung Hoa và nhân vật cổ trang có rig trong các kho CC0/CC-BY tải trực tiếp được.
+
+## Ghi công asset 3D (CC-BY — bắt buộc khi phát hành công khai)
+
+- "Pagoda", "Bamboo", "Bonsai" — Poly by Google, CC-BY 3.0 (qua Poly Pizza).
+- "red lantern" — Sophie Kim, CC-BY 3.0 (qua Poly Pizza).
+- Fox: model © PixelMannen (CC0); rigging & animation © tomkranis (CC-BY 4.0); chuyển đổi glTF © AsoboStudio và scurest (CC-BY 4.0) — Khronos glTF-Sample-Assets.
+- Các asset còn lại dùng CC0 (Quaternius, Kenney, Kay Lousberg). Chi tiết đầy đủ: `ASSETS.md`, `ASSETS_FOUND.md`.
 
 © Nông Quang Vinh

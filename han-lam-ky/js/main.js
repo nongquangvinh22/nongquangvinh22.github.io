@@ -3,7 +3,7 @@
 // © Nông Quang Vinh
 import * as THREE from 'three';
 import { createEnvironment } from './environment.js';
-import { createPlayer, createNPCs } from './characters.js';
+import { createPlayer, createNPCs, createVillagers } from './characters.js';
 import {
   QUESTS, getRank, loadSave, saveGame, getDialogue,
   renderStudyBook, speakChinese, updateHUD, showToast,
@@ -39,6 +39,7 @@ const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerH
 const env = createEnvironment(scene);
 const colliders = env.colliders || [];
 const npcs = createNPCs(scene);
+const villagers = createVillagers(scene); // dân làng đi lại (trang trí, không nhiệm vụ)
 let player = null;
 let started = false;
 
@@ -649,6 +650,8 @@ function setQuality(q) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.shadowMap.enabled = true;
   }
+  // Đồng bộ mật độ chi tiết môi trường (cỏ/hoa, đèn chợ, bóng mặt trời).
+  try { if (env && typeof env.setDetail === 'function') env.setDetail(q); } catch (_err) { /* chi tiết là phụ */ }
   scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
   document.querySelectorAll('[data-quality]').forEach((b) => {
     b.classList.toggle('active', b.dataset.quality === q);
@@ -657,6 +660,8 @@ function setQuality(q) {
 document.querySelectorAll('[data-quality]').forEach((b) => {
   b.addEventListener('click', () => setQuality(b.dataset.quality));
 });
+// Đồng bộ trạng thái mặc định (Trung) ngay khi tải: mật độ cỏ/hoa, đèn chợ.
+setQuality('medium');
 
 // ---------------------------------------------------------------------------
 // Màn hình bắt đầu
@@ -716,6 +721,7 @@ function animate() {
 
   env.update(dt, elapsed);
   for (const npc of npcs) npc.update(dt, elapsed);
+  for (const v of villagers) v.update(dt, elapsed);
 
   if (player && started) {
     const pos = player.group.position;

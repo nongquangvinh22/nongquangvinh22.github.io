@@ -193,6 +193,13 @@ function makeHead({ hairStyle = 'scholar', beard = false } = {}) {
     head.add(brim);
     head.add(cyl(0.13, 0.145, 0.09, DARK, 0, 0.18, 0));
     head.add(sphere(0.165, HAIR_WHITE, 0, 0.02, -0.05, 1, 0.9, 1)); // tóc bạc hai bên
+  } else if (hairStyle === 'elder') {
+    // Người già: tóc bạc búi thấp + trâm gỗ
+    head.add(sphere(0.165, HAIR_WHITE, 0, 0.03, -0.03, 1, 0.92, 1));
+    head.add(sphere(0.055, HAIR_WHITE, 0, 0.16, -0.06)); // búi thấp
+    const pin = cyl(0.008, 0.008, 0.16, LEATHER, 0, 0.16, -0.06);
+    pin.rotation.z = Math.PI / 2;
+    head.add(pin);
   } else if (hairStyle === 'seller') {
     // Khăn đội đầu: hình cầu dẹt ôm đầu + nút thắt bên
     head.add(sphere(0.17, mat(0xd95f7a, 0.8), 0, 0.05, -0.02, 1, 0.9, 1));
@@ -691,3 +698,112 @@ export function createNPCs(scene) {
 
   return npcs;
 }
+
+// ---------------------------------------------------------------------------
+// DÂN LÀNG ĐI LẠI (chỉ trang trí, không tham gia nhiệm vụ/hội thoại)
+// ---------------------------------------------------------------------------
+// Đi chậm theo vòng waypoints, dừng nghỉ ở mỗi điểm. KHÔNG nằm trong mảng
+// `npcs` nên không bị click-to-move nhắm tới, không mở hội thoại, không
+// ảnh hưởng nhiệm vụ — chỉ làm làng có sức sống.
+export function createVillagers(scene) {
+  const villagers = [];
+
+  function makeWalker({ name, robeColor, trimColor, pantsColor, hairStyle, waypoints, speed = 1.0, prop }) {
+    const human = buildHuman({
+      robeMat: mat(robeColor, 0.8), trimMat: mat(trimColor, 0.8), pantsMat: mat(pantsColor, 0.8),
+      hairStyle, beltColor: trimColor, name, hemY: 0.55, hemR: 0.24,
+    });
+    const { group, body, head, leftArm, rightArm, leftLeg, rightLeg } = human;
+    if (typeof prop === 'function') prop({ group, body, head, leftArm, rightArm });
+    group.position.set(waypoints[0].x, 0, waypoints[0].z);
+    scene.add(group);
+    let wp = 1, pause = 0, phase = 0, t0 = 0;
+    villagers.push({
+      id: 'villager-' + villagers.length,
+      name,
+      group,
+      update(dt, t) {
+        const step = Math.min(Math.max(dt || 0, 0), 0.05);
+        t0 += step;
+        const time = typeof t === 'number' ? t : t0;
+        if (pause > 0) {
+          pause -= step;
+          body.position.y = Math.sin(time * 1.8) * 0.012;
+          // Dừng nghỉ: chân tay về tư thế đứng tự nhiên
+          leftLeg.rotation.x *= 0.85;
+          rightLeg.rotation.x *= 0.85;
+          leftArm.rotation.x *= 0.85;
+          rightArm.rotation.x *= 0.85;
+          return;
+        }
+        const target = waypoints[wp];
+        const dx = target.x - group.position.x, dz = target.z - group.position.z;
+        const d = Math.hypot(dx, dz);
+        if (d < 0.4) {
+          wp = (wp + 1) % waypoints.length;
+          pause = 1.5 + Math.random() * 2;
+          return;
+        }
+        const vx = dx / d, vz = dz / d;
+        group.position.x += vx * speed * step;
+        group.position.z += vz * speed * step;
+        group.rotation.y = Math.atan2(vx, vz);
+        phase += step * 6.5;
+        const s = Math.sin(phase);
+        leftLeg.rotation.x = s * 0.45;
+        rightLeg.rotation.x = -s * 0.45;
+        leftArm.rotation.x = -s * 0.35;
+        rightArm.rotation.x = s * 0.35;
+        body.position.y = Math.abs(Math.cos(phase)) * 0.025 + Math.sin(time * 1.8) * 0.008;
+      },
+    });
+  }
+
+  // Bà Lão Mai — áo tím xám, tóc bạc, xách giỏ đi chợ → giếng → sân trường.
+  makeWalker({
+    name: 'Bà Lão Mai', robeColor: 0x6e5a7e, trimColor: 0xd4af37, pantsColor: 0x3a3340,
+    hairStyle: 'elder', speed: 0.85,
+    waypoints: [{ x: -14, z: 10 }, { x: -5, z: -5 }, { x: -26, z: -15 }, { x: -14, z: 10 }],
+    prop: ({ leftArm }) => {
+      const basket = new THREE.Group();
+      basket.add(cyl(0.13, 0.10, 0.14, mat(0xb98d4f, 0.95), 0, 0, 0));
+      basket.add(sphere(0.05, mat(0x8ec63f, 0.7), -0.04, 0.09, 0, 1, 0.7, 1));
+      basket.add(sphere(0.05, mat(0xe74c3c, 0.7), 0.05, 0.09, 0.02, 1, 0.7, 1));
+      basket.position.set(0, -0.58, 0.04);
+      leftArm.add(basket);
+      leftArm.rotation.x = -0.5;
+    },
+  });
+
+  // Anh Nông Dân — áo nâu xanh, mũ rơm, vác cuốc đi ruộng → chợ → đầu cầu.
+  makeWalker({
+    name: 'Anh Nông Dân', robeColor: 0x5a6b3a, trimColor: 0x8a6234, pantsColor: 0x4a3826,
+    hairStyle: 'courier', speed: 1.15,
+    waypoints: [{ x: -35, z: 35 }, { x: -12, z: 8 }, { x: 16, z: 0 }, { x: -12, z: 8 }],
+    prop: ({ rightArm }) => {
+      const hoe = new THREE.Group();
+      hoe.add(cyl(0.02, 0.02, 0.85, LEATHER, 0, 0, 0));
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.2, 0.03), mat(0x777777, 0.4, 0.6));
+      blade.position.set(0, 0.48, 0);
+      hoe.add(blade);
+      hoe.position.set(0, -0.55, 0.05);
+      hoe.rotation.x = 0.5;
+      rightArm.add(hoe);
+      rightArm.rotation.x = -0.3;
+    },
+  });
+
+  // Cô Gái Trẻ — áo chàm, khăn hồng, đội gói vải đi quanh nhà dân → giếng.
+  makeWalker({
+    name: 'Cô Gái Trẻ', robeColor: 0x2e6b7a, trimColor: 0xd95f7a, pantsColor: 0x2a2a33,
+    hairStyle: 'seller', speed: 1.05,
+    waypoints: [{ x: -36, z: 18 }, { x: -5, z: -5 }, { x: 10, z: 18 }, { x: -36, z: 18 }],
+    prop: ({ head }) => {
+      // Gói vải đội đầu
+      head.add(sphere(0.09, mat(0x2e7d4f, 0.85), 0, 0.26, 0, 1, 0.7, 1));
+    },
+  });
+
+  return villagers;
+}
+
