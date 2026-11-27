@@ -568,22 +568,27 @@ export function createEnvironment(scene) {
   }
 
   // Đèn lồng treo trong nhà (treo từ trần/xà, đung đưa theo animated.lanterns).
+  // Nhỏ + treo cao hơn đèn ngoài trời: kiểm thử 27/11 ghi đèn lồng trong lớp
+  // rất to, che thêm tầm nhìn — trong nhà camera bị kéo lại gần (main.js:
+  // tối đa 7,5 m, thực tế ~2–3 m vì tường chặn) nên đèn cũ đường kính
+  // 0,52 m, tua rua chạm tới ~1,9 m chiếm quá nhiều khung hình. Bản này:
+  // thân 0,36 m, đáy tua rua ~2,15 m (treo ở 2,9 m), chỉ dùng trong nhà.
   function makeIndoorLantern(parent, lx, ly, lz) {
     const g = new THREE.Group();
     g.position.set(lx, ly, lz);
     parent.add(g);
-    const string = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.4, 5), woodDarkMat);
-    string.position.y = -0.2;
+    const string = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.25, 5), woodDarkMat);
+    string.position.y = -0.125;
     g.add(string);
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.26, 14, 12), lanternMat);
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.18, 14, 12), lanternMat);
     body.scale.y = 0.85;
-    body.position.y = -0.62;
+    body.position.y = -0.42;
     g.add(body);
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.07, 10), goldMat);
-    cap.position.y = -0.4;
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.075, 0.06, 10), goldMat);
+    cap.position.y = -0.28;
     g.add(cap);
-    const tassel = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.04, 0.22, 6), goldMat);
-    tassel.position.y = -0.98;
+    const tassel = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.14, 6), goldMat);
+    tassel.position.y = -0.68;
     g.add(tassel);
     animated.lanterns.push({ obj: g, phase: Math.random() * Math.PI * 2 });
     return g;

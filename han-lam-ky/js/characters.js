@@ -85,13 +85,18 @@ function robe(robeMat, { hemY = 0.28, hemR = 0.27, waistR = 0.20, shoulderR = 0.
 // ---------------------------------------------------------------------------
 function makeNameSprite(text) {
   const label = String(text || 'Thư Sinh');
-  const font = 'bold 46px sans-serif';
+  // Nhỏ hơn trước (46px/0,26 m): kiểm thử 27/11 ghi tên NPC trong lớp bị cắt
+  // ở mép màn hình. Nhãn là sprite 3D căn giữa trên đầu NPC nên NPC đứng
+  // sát mép thì nhãn vẫn có thể chạm mép — thu nhỏ ~15% giúp nhãn dài như
+  // "Thầy Đồ Lâm" bớt tràn, không sửa được triệt để nếu không kẹp nhãn theo
+  // khung hình (việc lớn hơn, để riêng).
+  const font = 'bold 38px sans-serif';
   const measure = document.createElement('canvas').getContext('2d');
   measure.font = font;
   const textW = Math.ceil(measure.measureText(label).width);
-  const padX = 34;
+  const padX = 26;
   const w = textW + padX * 2;
-  const h = 78;
+  const h = 64;
 
   const canvas = document.createElement('canvas');
   canvas.width = w;
@@ -130,9 +135,9 @@ function makeNameSprite(text) {
   tex.anisotropy = 4;
   const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
   const sprite = new THREE.Sprite(spriteMat);
-  const height = 0.26;
+  const height = 0.22;
   sprite.scale.set(height * (w / h), height, 1);
-  sprite.position.y = 2.3;
+  sprite.position.y = 2.25;
   return sprite;
 }
 
