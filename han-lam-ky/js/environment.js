@@ -699,21 +699,26 @@ export function createEnvironment(scene) {
       sign.rotation.x = -0.08;
       g.add(sign);
     }
-    // Collider tường: hàng tròn nhỏ dọc tường, chừa đúng khe cửa
-    function wallLine(lx0, lz0, lx1, lz1, step = 1.3) {
+    // Collider tường: hàng tròn nhỏ dọc tường, chừa đúng khe cửa.
+    // LƯU Ý: bán kính collider + bán kính người chơi (0.45) phải nhỏ hơn
+    // nửa khe cửa, nếu không hai collider ở mép cửa sẽ chồng lên nhau và
+    // bịt kín cửa ngay cả khi cửa đã mở (lỗi kiểm thử 27/11: không vào
+    // được lớp học/trường thi). Vì vậy mép cửa lùi ra ±(doorW/2+0.5) và
+    // collider ở đoạn tường Nam dùng bán kính nhỏ hơn (0.5).
+    function wallLine(lx0, lz0, lx1, lz1, step = 1.3, r = 0.65) {
       const len = Math.hypot(lx1 - lx0, lz1 - lz0);
       const n = Math.max(1, Math.round(len / step));
       for (let i = 0; i <= n; i++) {
         const t = i / n;
         const p = toWorld(lx0 + (lx1 - lx0) * t, lz0 + (lz1 - lz0) * t);
-        addCollider(p.x, p.z, 0.85);
+        addCollider(p.x, p.z, r);
       }
     }
     wallLine(-w / 2, -d / 2, w / 2, -d / 2);
     wallLine(-w / 2, -d / 2, -w / 2, d / 2);
     wallLine(w / 2, -d / 2, w / 2, d / 2);
-    wallLine(-w / 2, d / 2, -doorW / 2 - 0.2, d / 2);
-    wallLine(doorW / 2 + 0.2, d / 2, w / 2, d / 2);
+    wallLine(-w / 2, d / 2, -doorW / 2 - 0.5, d / 2, 1.3, 0.5);
+    wallLine(doorW / 2 + 0.5, d / 2, w / 2, d / 2, 1.3, 0.5);
     // Cửa: collider riêng, chỉ tồn tại khi đóng
     const doorWorld = toWorld(0, d / 2);
     const doorCollider = { x: doorWorld.x, z: doorWorld.z, r: 0.95 };
@@ -893,7 +898,7 @@ export function createEnvironment(scene) {
       const cap = new THREE.Mesh(new THREE.SphereGeometry(0.48, 10, 8), tileMatRed);
       cap.position.set(50 + dx, 3.6, gz);
       scene.add(cap);
-      addCollider(50 + dx, gz, 0.7);
+      addCollider(50 + dx, gz, 0.55); // khe cổng 2.8 m: chừa lối đi ~0.8 m
     });
     const gateSign = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 0.9), new THREE.MeshStandardMaterial({ map: signTexture('科举考场', 'Trường Thi'), roughness: 0.85, side: THREE.DoubleSide }));
     gateSign.position.set(50, 3.1, gz);
