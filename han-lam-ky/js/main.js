@@ -6,7 +6,8 @@ import { createEnvironment } from './environment.js';
 import { createPlayer, createNPCs } from './characters.js';
 import {
   QUESTS, getRank, loadSave, saveGame, getDialogue,
-  renderStudyBook, speakChinese, updateHUD, showToast
+  renderStudyBook, speakChinese, updateHUD, showToast,
+  recordWrongAnswer, blackboardForLesson, teacherModeFor, speakTone
 } from './gameplay.js';
 
 // ---------------------------------------------------------------------------
@@ -46,19 +47,54 @@ let started = false;
 // ---------------------------------------------------------------------------
 let camYaw = 0;            // 0 = camera ở phía Nam, nhìn về Bắc
 let camPitch = 0.38;       // góc ngẩng (rad)
-let camDist = 11;          // zoom 6..18
+let camDist = 11;          // zoom hiện tại (mượt dần về mục tiêu), 6..18
+let camDistTarget = 11;    // zoom mục tiêu (lăn chuột đặt mục tiêu, không nhảy)
+let camDistEff = 11;       // khoảng cách thực sau va chạm camera
 const camTarget = new THREE.Vector3(0, 1.6, 0);
 const desiredTarget = new THREE.Vector3(0, 1.6, 0);
+
+// Va chạm camera: tia từ mục tiêu tới camera chạm collider (hình trụ đứng,
+// coi như cao ~6.5 m — mái nhà) thì kéo camera lại gần, không xuyên tường/mái.
+// Trả về giới hạn camDist lớn nhất cho phép (Infinity = không chạm).
+function cameraCollisionLimit() {
+  const cp = Math.cos(camPitch);
+  if (cp < 0.05) return Infinity;
+  const dx = Math.sin(camYaw), dz = Math.cos(camYaw); // hướng ngang mục tiêu -> camera
+  const tx = camTarget.x, tz = camTarget.z;
+  let limit = Infinity;
+  for (const c of colliders) {
+    const rx = c.x - tx, rz = c.z - tz;
+    const t = rx * dx + rz * dz; // khoảng cách dọc tia tới điểm gần tâm nhất
+    if (t <= 0) continue;
+    const rad = c.r + 0.5;
+    const closestSq = rx * rx + rz * rz - t * t;
+    if (closestSq >= rad * rad) continue;
+    const entry = t - Math.sqrt(rad * rad - closestSq);
+    if (entry <= 0) continue;
+    // Chiều cao camera tại điểm vào collider: đã vượt mái thì không chặn.
+    const yAt = camTarget.y + Math.tan(camPitch) * entry;
+    if (yAt > 6.5) continue;
+    limit = Math.min(limit, Math.max(1.2, entry - 0.4) / cp);
+  }
+  return limit;
+}
 
 function updateCamera(dt) {
   const focus = player ? player.group.position : new THREE.Vector3(0, 0, 0);
   desiredTarget.set(focus.x, focus.y + 1.6, focus.z);
   camTarget.lerp(desiredTarget, 1 - Math.pow(0.001, dt)); // mượt
+  // Zoom mượt: lerp về mục tiêu thay vì nhảy ngay khi lăn chuột.
+  camDist += (camDistTarget - camDist) * (1 - Math.pow(0.001, dt));
+  // Va chạm: kéo lại gần khi sắp xuyên nhà/tường; kéo vào nhanh, nhả ra mượt.
+  const effTarget = Math.min(camDist, cameraCollisionLimit());
+  const effRate = effTarget < camDistEff ? 0.00001 : 0.001;
+  camDistEff += (effTarget - camDistEff) * (1 - Math.pow(effRate, dt));
+  const dist = Math.max(2.0, camDistEff); // tối thiểu 2 m: vẫn thấy rõ nhân vật
   const cp = Math.cos(camPitch), sp = Math.sin(camPitch);
   camera.position.set(
-    camTarget.x + Math.sin(camYaw) * cp * camDist,
-    camTarget.y + sp * camDist,
-    camTarget.z + Math.cos(camYaw) * cp * camDist
+    camTarget.x + Math.sin(camYaw) * cp * dist,
+    camTarget.y + sp * dist,
+    camTarget.z + Math.cos(camYaw) * cp * dist
   );
   camera.lookAt(camTarget);
 }
@@ -67,29 +103,55 @@ function updateCamera(dt) {
 // Điều khiển
 // ---------------------------------------------------------------------------
 const keys = new Set();
+let runHeld = false; // nút RUN (mobile): giữ để chạy
 let clickTarget = null;      // {x, z, run}
 let pendingNpcId = null;
 let dialogueOpen = false;
 let currentDialogue = null;  // {npcId, quest}
 let listenText = '你好';
 
+// Bảng mở có chặn di chuyển không? (hội thoại hoặc sổ học tập)
+function isStudyOpen() {
+  const el = document.getElementById('study-panel');
+  return !!el && !el.classList.contains('hidden');
+}
+function isInputBlocked() { return dialogueOpen || isStudyOpen(); }
+
+// Xóa toàn bộ trạng thái di chuyển đang giữ — chống nhân vật tự trôi khi
+// mở hội thoại, mất focus cửa sổ, hoặc nhấn Esc.
+function clearKeys() {
+  keys.clear();
+  clickTarget = null;
+  pendingNpcId = null;
+  runHeld = false;
+  if (typeof joyReset === 'function') joyReset();
+}
+
 const WALK_SPEED = 4.2;
 const RUN_SPEED = 7.6;
 
 window.addEventListener('keydown', (e) => {
   if (!started) return;
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+  if (e.code === 'Escape') { clearKeys(); closeAllPanels(); return; }
+  if (isInputBlocked()) return; // đang đọc hội thoại / sổ: không nhận phím đi
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   keys.add(e.code);
   if (e.code === 'KeyE') interactNearest();
-  if (e.code === 'Escape') closeAllPanels();
 });
 window.addEventListener('keyup', (e) => keys.delete(e.code));
+// Mất focus / ẩn tab: phím đang giữ coi như đã thả (tránh trôi nhân vật).
+window.addEventListener('blur', () => { clearKeys(); rightDragging = false; downInfo = null; });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { clearKeys(); rightDragging = false; downInfo = null; }
+});
 
 function closeAllPanels() {
   document.getElementById('dialogue-panel').classList.add('hidden');
   document.getElementById('study-panel').classList.add('hidden');
   dialogueOpen = false;
   currentDialogue = null;
+  clearKeys();
 }
 
 // --- Chuột: click trái đi tới, double-click chạy, giữ phải xoay camera ---
@@ -108,13 +170,21 @@ function setPointerFromEvent(e) {
 renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
 
 renderer.domElement.addEventListener('pointerdown', (e) => {
-  if (!started || dialogueOpen) return;
-  downInfo = { x: e.clientX, y: e.clientY, time: performance.now(), button: e.button };
+  if (!started || dialogueOpen || isStudyOpen()) return;
+  downInfo = { x: e.clientX, y: e.clientY, time: performance.now(), button: e.button, dragged: false };
   lastPointer = { x: e.clientX, y: e.clientY };
   if (e.button === 2) rightDragging = true;
 });
 
 renderer.domElement.addEventListener('pointermove', (e) => {
+  // Kéo chuột trái >6px: hủy click-to-move đang có, không đặt mục tiêu mới.
+  // (Click trái đơn không xoay camera — chỉ chuột phải giữ kéo mới xoay.)
+  if (downInfo && downInfo.button === 0 && !downInfo.dragged) {
+    if (Math.hypot(e.clientX - downInfo.x, e.clientY - downInfo.y) > 6) {
+      downInfo.dragged = true;
+      clickTarget = null;
+    }
+  }
   if (rightDragging && downInfo && downInfo.button === 2) {
     const dx = e.clientX - lastPointer.x;
     const dy = e.clientY - lastPointer.y;
@@ -126,11 +196,12 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 
 function endPointer(e) {
   if (rightDragging && e.button === 2) rightDragging = false;
-  if (!downInfo || downInfo.button !== 0 || !started || dialogueOpen) { downInfo = null; return; }
+  if (!downInfo || downInfo.button !== 0 || !started || dialogueOpen || isStudyOpen()) { downInfo = null; return; }
   const moved = Math.hypot(e.clientX - downInfo.x, e.clientY - downInfo.y);
   const dtMs = performance.now() - downInfo.time;
+  const wasDragged = downInfo.dragged;
   downInfo = null;
-  if (moved > 6 || dtMs > 400) return;
+  if (wasDragged || moved > 6 || dtMs > 400) return;
   handleGroundClick(e);
 }
 
@@ -138,7 +209,7 @@ renderer.domElement.addEventListener('pointerup', endPointer);
 renderer.domElement.addEventListener('pointercancel', () => { downInfo = null; rightDragging = false; });
 
 renderer.domElement.addEventListener('dblclick', (e) => {
-  if (!started || dialogueOpen) return;
+  if (!started || dialogueOpen || isStudyOpen()) return;
   // Double-click: chạy tới điểm đã click (click đơn trước đó đã đặt mục tiêu đi bộ)
   if (clickTarget) clickTarget.run = true;
   else handleGroundClick(e, true);
@@ -146,7 +217,8 @@ renderer.domElement.addEventListener('dblclick', (e) => {
 
 renderer.domElement.addEventListener('wheel', (e) => {
   e.preventDefault();
-  camDist = Math.max(6, Math.min(18, camDist * (1 + e.deltaY * 0.001)));
+  // Chỉ đặt mục tiêu zoom — updateCamera lerp camDist về đó nên zoom mượt.
+  camDistTarget = Math.max(6, Math.min(18, camDistTarget * (1 + e.deltaY * 0.001)));
 }, { passive: false });
 
 function groundPointFromEvent(e) {
@@ -192,8 +264,8 @@ function isDescendant(root, obj) {
   return false;
 }
 
-// --- Joystick ảo (mobile) ---
-const joy = { active: false, x: 0, y: 0 };
+// --- Joystick ảo (mobile): multi-touch thật, mỗi vùng một Pointer ID riêng ---
+const joy = { active: false, pointerId: null, x: 0, y: 0 };
 const joystickEl = document.getElementById('joystick');
 const stickEl = document.getElementById('stick');
 function joyUpdate(e) {
@@ -206,32 +278,104 @@ function joyUpdate(e) {
   joy.x = dx; joy.y = dy;
   stickEl.style.transform = `translate(calc(-50% + ${dx * 34}px), calc(-50% + ${dy * 34}px))`;
 }
-joystickEl.addEventListener('pointerdown', (e) => { joy.active = true; joystickEl.setPointerCapture(e.pointerId); joyUpdate(e); });
-joystickEl.addEventListener('pointermove', (e) => { if (joy.active) joyUpdate(e); });
-function joyEnd() { joy.active = false; joy.x = 0; joy.y = 0; stickEl.style.transform = 'translate(-50%, -50%)'; }
+function joyReset() {
+  joy.active = false; joy.pointerId = null; joy.x = 0; joy.y = 0;
+  if (stickEl) stickEl.style.transform = 'translate(-50%, -50%)';
+}
+joystickEl.addEventListener('pointerdown', (e) => {
+  if (joy.active) return; // đã có một ngón giữ joystick: ngón khác không cướp
+  joy.active = true; joy.pointerId = e.pointerId;
+  try { joystickEl.setPointerCapture(e.pointerId); } catch (_err) {}
+  e.stopPropagation();
+  joyUpdate(e);
+});
+joystickEl.addEventListener('pointermove', (e) => {
+  if (!joy.active || e.pointerId !== joy.pointerId) return;
+  joyUpdate(e);
+});
+function joyEnd(e) {
+  if (e && joy.pointerId !== null && e.pointerId !== joy.pointerId) return;
+  joyReset();
+}
 joystickEl.addEventListener('pointerup', joyEnd);
 joystickEl.addEventListener('pointercancel', joyEnd);
-document.getElementById('btn-e').addEventListener('click', () => interactNearest());
+
+// --- Vùng xoay camera cảm ứng (nửa phải màn hình): Pointer ID riêng ---
+// Người chơi giữ joystick tay trái vẫn xoay camera tay phải cùng lúc.
+const touchCamEl = document.getElementById('touch-camera');
+let camPointerId = null;
+const lastCamPointer = { x: 0, y: 0 };
+if (touchCamEl) {
+  touchCamEl.addEventListener('pointerdown', (e) => {
+    if (camPointerId !== null) return; // một ngón đang xoay camera
+    camPointerId = e.pointerId;
+    lastCamPointer.x = e.clientX; lastCamPointer.y = e.clientY;
+    try { touchCamEl.setPointerCapture(e.pointerId); } catch (_err) {}
+    e.stopPropagation();
+  });
+  touchCamEl.addEventListener('pointermove', (e) => {
+    if (camPointerId === null || e.pointerId !== camPointerId) return;
+    const dx = e.clientX - lastCamPointer.x;
+    const dy = e.clientY - lastCamPointer.y;
+    lastCamPointer.x = e.clientX; lastCamPointer.y = e.clientY;
+    camYaw -= dx * 0.005;
+    camPitch = Math.max(0.12, Math.min(1.15, camPitch + dy * 0.005));
+  });
+  const camTouchEnd = (e) => { if (e.pointerId === camPointerId) camPointerId = null; };
+  touchCamEl.addEventListener('pointerup', camTouchEnd);
+  touchCamEl.addEventListener('pointercancel', camTouchEnd);
+}
+
+// --- Nút RUN: giữ để chạy (pointerdown/up, thả là hết chạy) ---
+const btnRunEl = document.getElementById('btn-run');
+if (btnRunEl) {
+  btnRunEl.addEventListener('pointerdown', (e) => {
+    runHeld = true; e.stopPropagation(); e.preventDefault();
+  });
+  const runEnd = (e) => { runHeld = false; if (e) e.stopPropagation(); };
+  btnRunEl.addEventListener('pointerup', runEnd);
+  btnRunEl.addEventListener('pointercancel', runEnd);
+  btnRunEl.addEventListener('pointerleave', runEnd);
+  btnRunEl.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
+// --- Nút tương tác (E): giữ nguyên id btn-e để không vỡ code cũ ---
+// Trên mobile đổi nhãn thành "Tương tác" (CSS đổi nút tròn thành nút dài).
+const btnEEl = document.getElementById('btn-e');
+if (btnEEl) {
+  if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
+    btnEEl.textContent = 'Tương tác';
+  }
+  btnEEl.addEventListener('click', () => interactNearest());
+  btnEEl.addEventListener('pointerdown', (e) => e.stopPropagation());
+}
 
 // ---------------------------------------------------------------------------
-// Va chạm: vòng tròn quanh nhà/cây/cột + dải sông (chỉ qua được bằng cầu)
-// ---------------------------------------------------------------------------
-function resolveCollisions(pos, prev) {
+// Va chạm: vòng tròn quanh nhà/cây/cột + dải sông (chỉ qua được bằng cầu).
+// Trượt dọc tường: thử di chuyển X rồi Z riêng, chỉ giữ trục nào không va
+// chạm — thay cho kiểu đẩy xuyên tâm cũ (dễ kẹt giữa 2 collider / bị đẩy
+// vào sông khi đứng gần cầu).
+function collidesAt(x, z) {
   // Sông x=18..26: chỉ qua được trên cầu (|z| <= 2.2)
-  if (pos.x > 17.8 && pos.x < 26.2 && Math.abs(pos.z) > 2.2) pos.x = prev.x;
+  if (x > 17.8 && x < 26.2 && Math.abs(z) > 2.2) return true;
   // Giới hạn làng
-  pos.x = Math.max(-68, Math.min(68, pos.x));
-  pos.z = Math.max(-68, Math.min(68, pos.z));
+  if (x < -68 || x > 68 || z < -68 || z > 68) return true;
   // Vòng tròn va chạm
   for (const c of colliders) {
-    const dx = pos.x - c.x, dz = pos.z - c.z;
-    const d = Math.hypot(dx, dz);
+    const dx = x - c.x, dz = z - c.z;
     const min = c.r + 0.45;
-    if (d < min && d > 0.0001) {
-      pos.x = c.x + (dx / d) * min;
-      pos.z = c.z + (dz / d) * min;
-    }
+    if (dx * dx + dz * dz < min * min) return true;
   }
+  return false;
+}
+
+function resolveCollisions(pos, prev) {
+  // Trục X trước: va chạm thì giữ nguyên X cũ, vẫn cho trượt theo Z.
+  if (collidesAt(pos.x, prev.z)) pos.x = prev.x;
+  // Trục Z sau (dùng X đã chốt): va chạm thì giữ nguyên Z cũ.
+  if (collidesAt(pos.x, pos.z)) pos.z = prev.z;
+  pos.x = Math.max(-68, Math.min(68, pos.x));
+  pos.z = Math.max(-68, Math.min(68, pos.z));
   return pos;
 }
 
@@ -245,6 +389,30 @@ function lerpAngle(a, b, t) {
 // ---------------------------------------------------------------------------
 // Hội thoại / bài học
 // ---------------------------------------------------------------------------
+// Cấp bậc: thử getRank(state) dạng object trước, fallback getRank(state.xp).
+// gameplay.js hiện tại getRank(xp) chỉ nhận SỐ — getRank(object) bị ép về
+// xp=0 nên luôn trả 学童. Probe dưới đây phát hiện điều đó (gọi thử với
+// xp=99999: nếu object-mode hỗ trợ thật thì phải trả cấp cao nhất, còn
+// không thì vẫn là 学童) và tự động dùng dạng object nếu gameplay sau này
+// hỗ trợ. Không đổi API gameplay/environment/characters.
+let rankObjectSupported = null;
+function rankFor(s) {
+  const xp = s && typeof s.xp === 'number' ? s.xp : 0;
+  const fallback = getRank(xp);
+  try {
+    if (rankObjectSupported === null) {
+      const probe = getRank({ xp: 99999 });
+      const top = getRank(99999);
+      rankObjectSupported = !!(probe && probe.name && top && probe.name === top.name);
+    }
+    if (rankObjectSupported) {
+      const r = getRank(s);
+      if (r && typeof r.name === 'string' && r.name) return r;
+    }
+  } catch (_err) { /* getRank(state) không hỗ trợ: dùng fallback số */ }
+  return fallback;
+}
+
 function nearestNpc(maxDist) {
   if (!player) return null;
   let best = null, bestD = maxDist;
@@ -257,13 +425,74 @@ function nearestNpc(maxDist) {
 
 function interactNearest() {
   if (!started || dialogueOpen) return;
+
+  // --- Hook Phase 4 (phòng thủ): cửa — env hiện CHƯA có env.doors nên
+  // khối này bỏ qua hoàn toàn, game chạy bình thường. Khi Phase 4 thêm
+  // env.doors = [{id,x,z,label,isOpen,toggle}], E gần cửa (<2.2 m) sẽ
+  // toggle cửa thay vì nói chuyện NPC.
+  try {
+    const doors = env && env.doors;
+    if (player && Array.isArray(doors)) {
+      let best = null, bestD = 2.2;
+      for (const d of doors) {
+        if (!d || typeof d.x !== 'number' || typeof d.z !== 'number') continue;
+        const dd = Math.hypot(d.x - player.group.position.x, d.z - player.group.position.z);
+        if (dd < bestD) { bestD = dd; best = d; }
+      }
+      if (best) {
+        if (typeof best.toggle === 'function') best.toggle();
+        else if (typeof best.isOpen === 'boolean') best.isOpen = !best.isOpen;
+        const isOpenNow = typeof best.isOpen === 'function' ? best.isOpen() : !!best.isOpen;
+        showToast((isOpenNow ? 'Đã mở ' : 'Đã đóng ') + (best.label || 'cửa') + '.');
+        return;
+      }
+    }
+  } catch (_err) { /* doors chưa sẵn sàng: rơi xuống NPC như thường */ }
+
+  // --- Hook Phase 4 (phòng thủ): bàn thi — env hiện CHƯA có env.examDesks.
+  // Khi có, E gần bàn thi trống (<2.2 m) sẽ gọi sitAtExamDesk nếu gameplay
+  // export hàm đó (dynamic import optional, try/catch, không vỡ game).
+  try {
+    const desks = env && env.examDesks;
+    if (player && Array.isArray(desks)) {
+      let best = null, bestD = 2.2;
+      for (const dk of desks) {
+        if (!dk || dk.occupied || typeof dk.x !== 'number' || typeof dk.z !== 'number') continue;
+        const dd = Math.hypot(dk.x - player.group.position.x, dk.z - player.group.position.z);
+        if (dd < bestD) { bestD = dd; best = dk; }
+      }
+      if (best) {
+        import('./gameplay.js').then((m) => {
+          if (typeof m.sitAtExamDesk === 'function') m.sitAtExamDesk(best);
+          else showToast('Bàn thi chưa sẵn sàng.');
+        }).catch(() => { showToast('Bàn thi chưa sẵn sàng.'); });
+        return;
+      }
+    }
+  } catch (_err) { /* examDesks chưa sẵn sàng: rơi xuống NPC như thường */ }
+
   const npc = nearestNpc(3.5);
   if (npc) openDialogue(npc.id);
   else showToast('Hãy lại gần một người trong làng rồi nhấn E.');
 }
 
 function openDialogue(npcId) {
+  clearKeys(); // dừng di chuyển ngay khi hội thoại mở (chống trôi)
   const dlg = getDialogue(npcId, state);
+  // Tích hợp Phase 5: thầy giảng thì bảng đen + tư thế thầy đổi theo bài.
+  if (npcId === 'teacher') {
+    try {
+      const lessonId = dlg.quest ? dlg.quest.id : null;
+      if (typeof blackboardForLesson === 'function' && env && typeof env.setBlackboardText === 'function') {
+        const bb = blackboardForLesson(lessonId);
+        if (bb && bb.hanzi) env.setBlackboardText(bb.hanzi, bb.pinyin || '');
+      }
+      if (typeof teacherModeFor === 'function') {
+        const teacher = npcs.find((n) => n.id === 'teacher');
+        if (teacher && typeof teacher.setMode === 'function') teacher.setMode(teacherModeFor(state, lessonId));
+      }
+    } catch (_err) { /* bảng/tư thế thầy là phụ: không vỡ hội thoại */ }
+  }
   currentDialogue = { npcId, quest: dlg.quest };
   dialogueOpen = true;
   clickTarget = null;
@@ -316,11 +545,12 @@ function answerQuiz(btn, idx) {
       updateHUD(state);
     }
     document.getElementById('dialogue-question').textContent =
-      'Chính xác! +' + q.xp + ' XP — Cấp bậc hiện tại: ' + getRank(state.xp).name;
+      'Chính xác! +' + q.xp + ' XP — Cấp bậc hiện tại: ' + rankFor(state).name;
     showToast('Hoàn thành nhiệm vụ: ' + q.title + ' (+' + q.xp + ' XP)');
   } else {
     btn.classList.add('wrong');
     btn.disabled = true;
+    try { if (typeof recordWrongAnswer === 'function') recordWrongAnswer(state, q.id); } catch (_err) { /* ghi lỗi sai là phụ */ }
     showToast('Chưa đúng, hãy nghe lại phát âm và thử nhé!');
   }
 }
@@ -333,8 +563,25 @@ document.getElementById('btn-listen').addEventListener('click', () => speakChine
 document.getElementById('btn-close-dialogue').addEventListener('click', closeAllPanels);
 
 document.getElementById('btn-study').addEventListener('click', () => {
+  clearKeys(); // dừng di chuyển khi mở sổ học tập
   document.getElementById('study-content').innerHTML = renderStudyBook(state);
   document.getElementById('study-panel').classList.remove('hidden');
+});
+// Nút nghe từng thanh điệu trong Sổ học tập (gameplay.js render ra .tone-btn)
+document.getElementById('study-content').addEventListener('click', (e) => {
+  const b = e.target && e.target.closest ? e.target.closest('.tone-btn') : null;
+  if (!b) return;
+  try { if (typeof speakTone === 'function') speakTone(b.dataset.toneBase || 'ma', parseInt(b.dataset.tone || '0', 10)); } catch (_err) { /* nghe phát âm là phụ */ }
+});
+// Sau khi thi xong trong overlay trường thi, gameplay.js ghi save mới và
+// phát sự kiện 'hanlamky:exam-done' — nạp lại state để HUD/cấp bậc cập nhật.
+window.addEventListener('hanlamky:exam-done', (e) => {
+  try {
+    const fresh = loadSave();
+    state = { ...fresh, completed: [...(fresh.completed || [])] };
+    updateHUD(state);
+    if (e && e.detail && e.detail.passed) showToast('Chúc mừng! Bạn đã thăng cấp lên ' + (e.detail.rankName || getRank(state).name) + '.');
+  } catch (_err) { /* nạp lại save là phụ */ }
 });
 document.getElementById('btn-close-study').addEventListener('click', closeAllPanels);
 document.getElementById('btn-help').addEventListener('click', () => {
@@ -371,6 +618,15 @@ const nameInput = document.getElementById('player-name');
 if (saved.playerName) nameInput.value = saved.playerName;
 
 document.getElementById('btn-start').addEventListener('click', () => {
+  // Thử khóa màn hình ngang trên mobile (thất bại thì bỏ qua lặng lẽ,
+  // không alert — nhiều trình duyệt chỉ cho lock khi đang fullscreen).
+  try {
+    const so = window.screen && window.screen.orientation;
+    if (so && typeof so.lock === 'function') {
+      const p = so.lock('landscape');
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    }
+  } catch (_err) { /* không hỗ trợ: bỏ qua */ }
   const name = (nameInput.value || '').trim() || saved.playerName || 'Học trò';
   // Tên khác với bản lưu có XP -> nhân vật mới, bắt đầu lại từ đầu.
   if (name !== saved.playerName && saved.xp > 0) {
@@ -408,20 +664,32 @@ function animate() {
     const pos = player.group.position;
     const prev = { x: pos.x, z: pos.z };
     let mx = 0, mz = 0;
-    let running = keys.has('ShiftLeft') || keys.has('ShiftRight');
+    let running = keys.has('ShiftLeft') || keys.has('ShiftRight') || runHeld;
+    const inputBlocked = isInputBlocked(); // hội thoại / sổ mở: không nhận input đi
 
     // WASD / mũi tên (theo hướng camera)
     const fwd = { x: -Math.sin(camYaw), z: -Math.cos(camYaw) };
     const right = { x: Math.cos(camYaw), z: -Math.sin(camYaw) };
+    let speedScale = 1; // joystick: tốc độ tỉ lệ lực kéo (phím/click luôn = 1)
+    if (!inputBlocked) {
     if (keys.has('KeyW') || keys.has('ArrowUp')) { mx += fwd.x; mz += fwd.z; }
     if (keys.has('KeyS') || keys.has('ArrowDown')) { mx -= fwd.x; mz -= fwd.z; }
     if (keys.has('KeyD') || keys.has('ArrowRight')) { mx += right.x; mz += right.z; }
     if (keys.has('KeyA') || keys.has('ArrowLeft')) { mx -= right.x; mz -= right.z; }
+    const hasKeyInput = mx !== 0 || mz !== 0;
 
-    // Joystick ảo
-    if (joy.active && Math.hypot(joy.x, joy.y) > 0.15) {
-      mx += fwd.x * -joy.y + right.x * joy.x;
-      mz += fwd.z * -joy.y + right.z * joy.x;
+    // Joystick ảo: 8 hướng, tốc độ tỉ lệ lực kéo (deadzone 0.15, chuẩn hóa 0..1)
+    if (joy.active) {
+      const joyMagRaw = Math.hypot(joy.x, joy.y);
+      if (joyMagRaw > 0.15) {
+        const joyMag = Math.min(1, (joyMagRaw - 0.15) / 0.85);
+        if (joyMag > 0.02) {
+          const jx = joy.x / joyMagRaw, jy = joy.y / joyMagRaw;
+          mx += (fwd.x * -jy + right.x * jx) * joyMag;
+          mz += (fwd.z * -jy + right.z * jx) * joyMag;
+          if (!hasKeyInput) speedScale = joyMag;
+        }
+      }
     }
 
     // Click-to-move (NPC đang đi tuần thì cập nhật mục tiêu theo vị trí mới)
@@ -452,12 +720,13 @@ function animate() {
         if (clickTarget.run) running = true;
       }
     }
+    } // !inputBlocked
 
     const moving = mx !== 0 || mz !== 0;
     if (moving) {
       const len = Math.hypot(mx, mz);
       mx /= len; mz /= len;
-      const speed = running ? RUN_SPEED : WALK_SPEED;
+      const speed = (running ? RUN_SPEED : WALK_SPEED) * speedScale;
       pos.x += mx * speed * dt;
       pos.z += mz * speed * dt;
       resolveCollisions(pos, prev);

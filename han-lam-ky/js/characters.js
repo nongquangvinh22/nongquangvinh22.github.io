@@ -371,10 +371,12 @@ export function createNPCs(scene) {
       robeMat, trimMat: GOLD, pantsMat: mat(0x3a2a2a, 0.8),
       hairStyle: 'teacher', beard: true, beltColor: 0x2e1a4d, name: 'Thầy Đồ Lâm',
     });
-    const { group, body, head, leftArm, rightArm } = human;
-    group.position.set(-24, 0, -16);
-    // Quay mặt về trung tâm làng (0,0)
-    group.rotation.y = Math.atan2(0 - (-24), 0 - (-16));
+    const { group, body, head, leftArm, rightArm, leftLeg, rightLeg } = human;
+    // TRONG lớp học (Phase 4): đứng trước bàn thầy, gần bảng đen.
+    // Tọa độ cục bộ trong lớp (0,-1.3) quy đổi từ tâm lớp (-28,-20), rotY 0.35.
+    group.position.set(-28.45, 0, -21.22);
+    // Mặc định mode 'teach': quay mặt về bảng đen (hướng Bắc trong lớp)
+    group.rotation.y = -2.79;
     scene.add(group);
 
     // Cuộn sách cầm tay phải: trụ giấy cuộn ngang + dây buộc
@@ -391,22 +393,75 @@ export function createNPCs(scene) {
     leftArm.rotation.x = -0.35; // tay trái đỡ nhẹ
 
     let t0 = 0;
+    // Chế độ dạy học của thầy (Phase 4): 'teach' (mặc định, đứng trước
+    // bảng chỉ bảng), 'read' (đọc sách trước lớp), 'walk' (đi chậm dọc
+    // lối đi phía Đông lớp, giữa 2 điểm trong lớp, không ra ngoài).
+    let mode = 'teach';
+    let walkPos = 0, walkDir = 1, walkPhase = 0;
+    // Lối đi phía Đông lớp, tọa độ thế giới (cục bộ (3.3,-1.6) → (3.3,1.9)):
+    // cách cột bàn phía Đông (x cục bộ 2.2) ~0.9 m, không vướng bàn/ghế.
+    const walkA = { x: -25.45, z: -22.63 };
+    const walkB = { x: -24.25, z: -19.35 };
+    const teacherHome = { x: -28.45, z: -21.22 };
+    function setMode(m) {
+      if (m === 'teach' || m === 'read' || m === 'walk') mode = m;
+      return mode;
+    }
     npcs.push({
       id: 'teacher',
       name: 'Thầy Đồ Lâm',
       role: 'Thầy đồ dạy chữ Hán ở trường làng',
       group,
-      home: { x: -24, z: -16 },
+      home: { x: -28.45, z: -21.22 },
+      setMode,
+      get mode() { return mode; },
       update(dt, t) {
         const step = Math.min(Math.max(dt || 0, 0), 0.05);
         t0 += step;
         const time = typeof t === 'number' ? t : t0;
-        // Thở nhẹ + gật gù đọc sách
-        body.position.y = Math.sin(time * 1.8) * 0.012;
-        head.rotation.x = 0.10 + Math.sin(time * 1.2) * 0.07;
-        head.rotation.y = Math.sin(time * 0.5) * 0.08;
-        rightArm.rotation.x = -0.85 + Math.sin(time * 1.2) * 0.05;
-        leftArm.rotation.x = -0.35 + Math.sin(time * 1.8) * 0.03;
+        const breathe = Math.sin(time * 1.8) * 0.012;
+        if (mode === 'walk') {
+          // Đi chậm qua lại dọc lối phía Đông lớp
+          walkPos += step * 0.13 * walkDir;
+          if (walkPos >= 1) { walkPos = 1; walkDir = -1; }
+          if (walkPos <= 0) { walkPos = 0; walkDir = 1; }
+          const x = walkA.x + (walkB.x - walkA.x) * walkPos;
+          const z = walkA.z + (walkB.z - walkA.z) * walkPos;
+          group.position.set(x, 0, z);
+          group.rotation.y = walkDir > 0 ? 0.35 : -2.79;
+          walkPhase += step * 5;
+          const s = Math.sin(walkPhase);
+          leftLeg.rotation.x = s * 0.35;
+          rightLeg.rotation.x = -s * 0.35;
+          leftArm.rotation.x = -s * 0.25;
+          rightArm.rotation.x = s * 0.25 - 0.4;
+          body.position.y = Math.abs(Math.cos(walkPhase)) * 0.02 + breathe * 0.5;
+          head.rotation.x = 0.05;
+          head.rotation.y = 0;
+        } else if (mode === 'read') {
+          // Đọc sách trước lớp, quay mặt về phía học trò (hướng Nam)
+          group.position.set(teacherHome.x, 0, teacherHome.z);
+          group.rotation.y = 0.35;
+          leftLeg.rotation.x = 0;
+          rightLeg.rotation.x = 0;
+          body.position.y = breathe;
+          head.rotation.x = 0.18 + Math.sin(time * 1.2) * 0.06;
+          head.rotation.y = Math.sin(time * 0.5) * 0.08;
+          rightArm.rotation.x = -0.85 + Math.sin(time * 1.2) * 0.05;
+          leftArm.rotation.x = -0.35 + Math.sin(time * 1.8) * 0.03;
+        } else {
+          // 'teach' (mặc định): đứng trước bảng, tay phải giơ chỉ bảng
+          group.position.set(teacherHome.x, 0, teacherHome.z);
+          group.rotation.y = -2.79;
+          leftLeg.rotation.x = 0;
+          rightLeg.rotation.x = 0;
+          body.position.y = breathe;
+          head.rotation.x = -0.06 + Math.sin(time * 0.9) * 0.04;
+          head.rotation.y = Math.sin(time * 0.4) * 0.1;
+          rightArm.rotation.x = -1.9 + Math.sin(time * 1.1) * 0.1;
+          rightArm.rotation.z = -0.1;
+          leftArm.rotation.x = -0.2 + Math.sin(time * 1.8) * 0.03;
+        }
       },
     });
   }
@@ -522,6 +577,109 @@ export function createNPCs(scene) {
         rightArm.rotation.x = s * 0.4;
         body.position.y = Math.abs(Math.cos(phase)) * 0.03 + Math.sin(time * 1.8) * 0.008;
         head.rotation.x = Math.sin(time * 1.1) * 0.04;
+      },
+    });
+  }
+
+  // --- 4-6. Học trò ngồi học trong lớp (Phase 4) ---
+  // Ngồi trên ghế ở bàn học sinh, quay mặt về bảng đen (rotY ≈ -2.79).
+  // Tọa độ thế giới đã quy đổi từ tọa độ cục bộ trong lớp (tâm (-28,-20),
+  // rotY 0.35): vị trí ghế = bàn + 0.62 m về phía Nam cục bộ.
+  function makeSeatedStudent(id, name, robeColor, wx, wz) {
+    const human = buildHuman({
+      robeMat: mat(robeColor, 0.8), trimMat: GOLD, pantsMat: mat(0x2a2a33, 0.8),
+      hairStyle: 'scholar', beltColor: 0xd4af37, name,
+      hemY: 0.55, hemR: 0.24,
+    });
+    const { group, body, head, leftArm, rightArm, leftLeg, rightLeg } = human;
+    group.position.set(wx, -0.42, wz); // hạ thấp: hông ngang mặt ghế (~0.43 m)
+    group.rotation.y = -2.79; // quay mặt về bảng đen
+    scene.add(group);
+    // Tư thế ngồi: chân gập về trước, tay đặt trên bàn/sách, đầu hơi cúi
+    leftLeg.rotation.x = -1.1;
+    rightLeg.rotation.x = -1.05;
+    leftArm.rotation.x = -1.2;
+    rightArm.rotation.x = -1.15;
+    leftArm.rotation.z = 0.15;
+    rightArm.rotation.z = -0.15;
+    head.rotation.x = 0.22;
+    // Quyển sách mở cầm trước ngực
+    const book = new THREE.Group();
+    const pageMat = mat(0xf5ead0, 0.9);
+    [-1, 1].forEach((s) => {
+      const page = sphere(0.09, pageMat, s * 0.08, 0, 0, 1, 0.12, 1.4);
+      page.rotation.z = -s * 0.2;
+      book.add(page);
+    });
+    book.position.set(0, 1.02, 0.3);
+    book.rotation.x = -0.45;
+    body.add(book);
+    let t0 = 0;
+    npcs.push({
+      id, name,
+      role: 'Học trò trong lớp',
+      group,
+      home: { x: wx, z: wz },
+      update(dt, t) {
+        const step = Math.min(Math.max(dt || 0, 0), 0.05);
+        t0 += step;
+        const time = typeof t === 'number' ? t : t0;
+        // Chỉ thở nhẹ + cúi đầu đọc, thỉnh thoảng lật sách (tay phải nhấc nhẹ)
+        body.position.y = Math.sin(time * 1.7) * 0.01;
+        head.rotation.x = 0.22 + Math.sin(time * 0.9) * 0.05;
+        head.rotation.y = Math.sin(time * 0.45) * 0.06;
+        const flip = Math.max(0, Math.sin(time * 0.5));
+        rightArm.rotation.x = -1.15 + flip * 0.18;
+        leftArm.rotation.x = -1.2 + Math.sin(time * 1.7) * 0.02;
+        leftLeg.rotation.x = -1.1;
+        rightLeg.rotation.x = -1.05;
+      },
+    });
+  }
+  makeSeatedStudent('student1', 'Học Trò An', 0x2e7d4f, -30.13, -19.41);
+  makeSeatedStudent('student2', 'Học Trò Bình', 0x8c5a2e, -28.06, -20.17);
+  makeSeatedStudent('student3', 'Học Trò Cường', 0x5a3a6e, -25.38, -19.23);
+
+  // --- 7. Quan Khảo Thí — đứng ở sân trường thi (Phase 4) ---
+  {
+    const robeMat = mat(0x8c1f28, 0.8); // quan phục đỏ sẫm
+    const human = buildHuman({
+      robeMat, trimMat: GOLD, pantsMat: mat(0x2a1a1a, 0.8),
+      hairStyle: 'teacher', beard: true, beltColor: 0xd4af37, name: 'Quan Khảo Thí',
+    });
+    const { group, body, head, leftArm, rightArm } = human;
+    group.position.set(50, 0, -46);
+    group.rotation.y = Math.PI; // quay mặt về trường thi (hướng Bắc)
+    scene.add(group);
+    // Cuộn chiếu chỉ cầm tay phải
+    const edict = new THREE.Group();
+    const roll = cyl(0.05, 0.05, 0.34, PAPER, 0, 0, 0);
+    roll.rotation.z = Math.PI / 2;
+    edict.add(roll);
+    edict.add(torus(0.053, 0.008, mat(0x8c2f2f, 0.7), -0.09, 0, 0));
+    edict.children[edict.children.length - 1].rotation.y = Math.PI / 2;
+    edict.position.set(0, -0.58, 0.06);
+    rightArm.add(edict);
+    rightArm.rotation.x = -0.85;
+    rightArm.rotation.z = -0.15;
+    leftArm.rotation.x = -0.25;
+    let t0 = 0;
+    npcs.push({
+      id: 'examiner',
+      name: 'Quan Khảo Thí',
+      role: 'Coi thi ở trường thi phía Đông sông',
+      group,
+      home: { x: 50, z: -46 },
+      update(dt, t) {
+        const step = Math.min(Math.max(dt || 0, 0), 0.05);
+        t0 += step;
+        const time = typeof t === 'number' ? t : t0;
+        // Đứng yên canh thi: thở nhẹ, thỉnh thoảng đảo mắt quan sát
+        body.position.y = Math.sin(time * 1.6) * 0.012;
+        head.rotation.y = Math.sin(time * 0.4) * 0.25;
+        head.rotation.x = Math.sin(time * 1.1) * 0.03;
+        rightArm.rotation.x = -0.85 + Math.sin(time * 1.2) * 0.04;
+        leftArm.rotation.x = -0.25 + Math.sin(time * 1.6) * 0.02;
       },
     });
   }
