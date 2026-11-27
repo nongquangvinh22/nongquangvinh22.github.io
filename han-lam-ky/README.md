@@ -1,42 +1,50 @@
 # Hán Lâm Ký · 汉林记
 
-Prototype game 3D học tiếng Trung giản thể, chạy trực tiếp trên trình duyệt.
+Game prototype 3D học tiếng Trung giản thể, chạy trực tiếp trên trình duyệt.
 
 ## Chơi thử
 
-Sau khi GitHub Pages hoàn tất triển khai, mở:
-
 https://nongquangvinh22.github.io/han-lam-ky/
 
-## Điều khiển
+## Điều khiển chuột
 
-- WASD hoặc phím mũi tên: di chuyển theo hướng camera
-- Kéo chuột trái trên màn hình 3D: xoay camera quanh nhân vật
-- Cuộn bánh xe chuột: phóng to / thu nhỏ camera
-- Shift: chạy
-- E: tương tác với NPC
-- Điện thoại: dùng cụm nút điều khiển trên màn hình
-- Nút “Sổ học vấn”: xem từ vựng đã mở khóa
-- Nút “Nhiệm vụ”: xem hành trình học tập
+- Nhấp chuột trái vào mặt đất: nhân vật đi tới vị trí đó.
+- Nhấp đúp chuột trái vào mặt đất: nhân vật chạy tới vị trí đó.
+- Nhấp chuột trái vào NPC: nhân vật tự đi đến gần NPC và mở hội thoại.
+- Giữ chuột phải và kéo ngang: quay góc nhìn trái/phải.
+- Giữ chuột phải và kéo lên/xuống: điều chỉnh góc nhìn cao/thấp.
+- Cuộn bánh xe: zoom camera gần/xa.
 
-## Nội dung prototype
+## Điều khiển bàn phím
 
-- Thôn Thanh Khê 3D được nâng cấp: đường làng uốn cong, nhà mái ngói, cây tán nhiều lớp, cổng làng và hồ nước
-- Camera góc nhìn thứ ba có điều khiển xoay bằng chuột và zoom
-- Nhân vật có chuyển động đi/chạy
-- NPC thầy đồ, người bán hàng và người đưa thư
-- Bài học qua các tình huống giao tiếp tiếng Trung
-- Nút nghe phát âm bằng giọng đọc tiếng Trung của trình duyệt
-- Lưu tiến trình cục bộ trên trình duyệt bằng localStorage
-- Dấu nhận diện: © Nông Quang Vinh
+- W/A/S/D hoặc phím mũi tên: di chuyển theo hướng camera.
+- Shift: chạy.
+- E: tương tác với NPC ở gần.
+- Esc: đóng hộp thoại.
+
+## Điện thoại
+
+- Dùng cụm phím điều hướng ở góc dưới bên trái.
+- Nút E ở góc dưới bên phải để tương tác.
+
+## Nội dung bản dựng lại
+
+- Viết lại trang game từ đầu bằng Three.js.
+- Thôn Thanh Khê có nhà mái ngói, khung gỗ, cửa sổ, biển hiệu, đường làng uốn cong, chợ, rừng trúc, hồ nước, cầu và tháp.
+- Nhân vật và NPC có hoạt ảnh nhịp thở, tay chân.
+- Chim bay, đèn lồng đung đưa và gợn nước chuyển động.
+- Điều khiển click-to-move, double-click-to-run và camera orbit bằng chuột phải.
+- Ba nhiệm vụ học tiếng Trung có Pinyin, nghĩa tiếng Việt và nghe phát âm.
+- Sổ học vấn, nhiệm vụ, điểm kinh nghiệm.
+- Dấu nhận diện: © Nông Quang Vinh.
 
 ## Giới hạn hiện tại
 
-Đây là prototype đầu tiên. Tiến trình hiện được lưu trên trình duyệt/thiết bị hiện tại, chưa có đăng nhập trực tuyến hoặc đồng bộ giữa nhiều thiết bị. Nội dung học hiện là bộ nhiệm vụ minh họa ban đầu, chưa phải toàn bộ giáo trình HSK. Các phiên bản tiếp theo cần bổ sung backend, đồng bộ tài khoản, giáo trình được rà soát chuyên môn, thêm hoạt ảnh và tài nguyên 3D chất lượng cao.
+Đây vẫn là prototype. Tiến trình lưu cục bộ trong trình duyệt, chưa có đăng nhập trực tuyến/đồng bộ nhiều thiết bị. Bộ bài học mới là nội dung minh họa, chưa phải khóa HSK hoàn chỉnh. Mô hình 3D được tạo procedural, chưa phải bộ asset nhân vật/kiến trúc thương mại.
 
 ## Công nghệ
 
-- Three.js (WebGL)
+- Three.js 0.180
 - HTML, CSS, JavaScript
 - GitHub Pages
 
