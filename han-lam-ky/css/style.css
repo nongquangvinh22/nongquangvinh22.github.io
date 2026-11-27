@@ -240,3 +240,13 @@ button.secondary { background: linear-gradient(180deg, #fdf6e3, #e8d9b0); }
   #dialogue-options { grid-template-columns: 1fr; }
   #quality-panel { display: none; }
 }
+
+/* ---------- Panel bài thi (tạo động bởi sitAtExamDesk) ---------- */
+/* Phải có position + z-index riêng, nếu không canvas 3D phủ kín màn hình sẽ che mất panel. */
+#exam-panel {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  z-index: 60; width: min(640px, 94vw); max-height: 84vh; overflow-y: auto;
+}
+#exam-panel h2 { font-size: 18px; color: var(--seal-red); margin-bottom: 6px; }
+#exam-panel p { font-size: 14.5px; line-height: 1.55; margin: 8px 0; }
+button.selected { outline: 3px solid var(--seal-red); background: linear-gradient(180deg, #f6d98a, #d9a441); }
