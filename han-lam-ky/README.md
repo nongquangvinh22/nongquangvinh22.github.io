@@ -10,7 +10,9 @@ https://nongquangvinh22.github.io/han-lam-ky/
 
 ## Điều khiển
 
-- WASD hoặc phím mũi tên: di chuyển
+- WASD hoặc phím mũi tên: di chuyển theo hướng camera
+- Kéo chuột trái trên màn hình 3D: xoay camera quanh nhân vật
+- Cuộn bánh xe chuột: phóng to / thu nhỏ camera
 - Shift: chạy
 - E: tương tác với NPC
 - Điện thoại: dùng cụm nút điều khiển trên màn hình
@@ -19,7 +21,8 @@ https://nongquangvinh22.github.io/han-lam-ky/
 
 ## Nội dung prototype
 
-- Thôn Thanh Khê 3D, camera góc nhìn thứ ba
+- Thôn Thanh Khê 3D được nâng cấp: đường làng uốn cong, nhà mái ngói, cây tán nhiều lớp, cổng làng và hồ nước
+- Camera góc nhìn thứ ba có điều khiển xoay bằng chuột và zoom
 - Nhân vật có chuyển động đi/chạy
 - NPC thầy đồ, người bán hàng và người đưa thư
 - Bài học qua các tình huống giao tiếp tiếng Trung
