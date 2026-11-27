@@ -218,6 +218,19 @@ export function createEnvironment(scene) {
   // Phase 4: cửa mở được (main.js hook đọc env.doors) + bàn thi (env.examDesks)
   const doors = [];
   const examDesks = [];
+  // Tòa nhà đi vào được (trường học, trường thi): để camera trong nhà ẩn
+  // mái + trần khi người chơi ở trong.
+  const buildings = [];
+  // Tòa nhà nào chứa điểm (x, z)? Tính theo hình chữ nhật đã xoay rotY.
+  function buildingAt(x, z) {
+    for (const b of buildings) {
+      const dx = x - b.x, dz = z - b.z;
+      const c = Math.cos(b.rotY), s = Math.sin(b.rotY);
+      const lx = dx * c - dz * s, lz = dx * s + dz * c;
+      if (Math.abs(lx) <= b.w / 2 && Math.abs(lz) <= b.d / 2) return b;
+    }
+    return null;
+  }
   let blackboardDraw = null; // hàm vẽ chữ lên bảng đen (gán trong onInterior trường học)
   let blackboardFallback = null; // {x,y,z,created} — vị trí sprite chữ dự phòng
   let waterFrame = 0; // đếm frame để giảm tần suất tính lại sóng nước
@@ -703,8 +716,9 @@ export function createEnvironment(scene) {
     // LƯU Ý: bán kính collider + bán kính người chơi (0.45) phải nhỏ hơn
     // nửa khe cửa, nếu không hai collider ở mép cửa sẽ chồng lên nhau và
     // bịt kín cửa ngay cả khi cửa đã mở (lỗi kiểm thử 27/11: không vào
-    // được lớp học/trường thi). Vì vậy mép cửa lùi ra ±(doorW/2+0.5) và
-    // collider ở đoạn tường Nam dùng bán kính nhỏ hơn (0.5).
+    // được lớp học/trường thi). Vì vậy cửa rộng 2.0 m, mép cửa lùi ra
+    // ±(doorW/2+0.6) và collider ở đoạn tường Nam dùng bán kính nhỏ (0.35)
+    // để vùng đi qua giữa cửa rộng ~1.6 m, bấm W đi thẳng cũng qua được.
     function wallLine(lx0, lz0, lx1, lz1, step = 1.3, r = 0.65) {
       const len = Math.hypot(lx1 - lx0, lz1 - lz0);
       const n = Math.max(1, Math.round(len / step));
@@ -717,8 +731,8 @@ export function createEnvironment(scene) {
     wallLine(-w / 2, -d / 2, w / 2, -d / 2);
     wallLine(-w / 2, -d / 2, -w / 2, d / 2);
     wallLine(w / 2, -d / 2, w / 2, d / 2);
-    wallLine(-w / 2, d / 2, -doorW / 2 - 0.5, d / 2, 1.3, 0.5);
-    wallLine(doorW / 2 + 0.5, d / 2, w / 2, d / 2, 1.3, 0.5);
+    wallLine(-w / 2, d / 2, -doorW / 2 - 0.6, d / 2, 1.3, 0.35);
+    wallLine(doorW / 2 + 0.6, d / 2, w / 2, d / 2, 1.3, 0.35);
     // Cửa: collider riêng, chỉ tồn tại khi đóng
     const doorWorld = toWorld(0, d / 2);
     const doorCollider = { x: doorWorld.x, z: doorWorld.z, r: 0.95 };
@@ -744,6 +758,10 @@ export function createEnvironment(scene) {
     doors.push(doorApi);
     animated.doors.push({ pivot: doorPivot, getTarget: () => targetRot });
     scene.add(g);
+    // Ghi lại tòa nhà để camera trong nhà ẩn mái + trần khi người chơi ở
+    // trong (xem buildingAt): nếu không ẩn, camera trên cao nhìn xuyên mái
+    // sẽ bị mái/trần che mất nhân vật (kiểm thử 27/11).
+    buildings.push({ x: opts.x, z: opts.z, w, d, rotY, roof, ceil });
     if (typeof opts.onInterior === 'function') {
       try { opts.onInterior({ group: g, toWorld, w, d, h, doorW }); } catch (_err) { /* nội thất lỗi: tòa nhà vẫn đứng vững */ }
     }
@@ -766,7 +784,7 @@ export function createEnvironment(scene) {
   // Nam chừa cửa rộng 1.8 m. Collider tròn lớn cũ (r≈5) đã bỏ, thay bằng
   // hàng collider nhỏ dọc tường trong createEnterableBuilding.
   const school = createEnterableBuilding({
-    x: -28, z: -20, rotY: 0.35, w: 8, d: 6, h: 3.1, roofH: 2.1,
+    x: -28, z: -20, rotY: 0.35, w: 8, d: 6, h: 3.1, roofH: 2.1, doorWidth: 2.0,
     wallMat: wallYellowMat, roofMat: tileMatRed,
     sign: '學堂', signSub: 'Trường Học Thanh Khê',
     doorId: 'school', doorLabel: 'Cửa trường học',
@@ -851,7 +869,7 @@ export function createEnvironment(scene) {
   // nhất (42,-48) ~8 m, ngoài rừng trúc (z=-40..-10), ngoài đường vòng
   // làng, cách nhà (38,20) rất xa. Cửa quay về hướng Nam (về phía làng).
   const examHall = createEnterableBuilding({
-    x: 50, z: -52, rotY: 0, w: 9, d: 6.5, h: 3.2, roofH: 1.9,
+    x: 50, z: -52, rotY: 0, w: 9, d: 6.5, h: 3.2, roofH: 1.9, doorWidth: 2.0,
     wallMat: wallGreyMat, roofMat: tileMatRed,
     sign: '科举考场', signSub: 'Trường Thi',
     doorId: 'examHall', doorLabel: 'Cửa trường thi',
@@ -898,7 +916,7 @@ export function createEnvironment(scene) {
       const cap = new THREE.Mesh(new THREE.SphereGeometry(0.48, 10, 8), tileMatRed);
       cap.position.set(50 + dx, 3.6, gz);
       scene.add(cap);
-      addCollider(50 + dx, gz, 0.55); // khe cổng 2.8 m: chừa lối đi ~0.8 m
+      addCollider(50 + dx, gz, 0.45); // khe cổng 2.8 m: chừa lối đi ~1.0 m
     });
     const gateSign = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 0.9), new THREE.MeshStandardMaterial({ map: signTexture('科举考场', 'Trường Thi'), roughness: 0.85, side: THREE.DoubleSide }));
     gateSign.position.set(50, 3.1, gz);
@@ -1365,5 +1383,5 @@ export function createEnvironment(scene) {
     return false;
   }
 
-  return { colliders, positions, update, doors, examDesks, setBlackboardText };
+  return { colliders, positions, update, doors, examDesks, setBlackboardText, buildings, buildingAt };
 }
