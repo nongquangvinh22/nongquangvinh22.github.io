@@ -5,10 +5,12 @@ import * as THREE from 'three';
 import { createEnvironment } from './environment.js';
 import { createPlayer, createNPCs, createVillagers } from './characters.js';
 import {
-  QUESTS, getRank, loadSave, saveGame, getDialogue,
+  QUESTS, getRank, loadSave, saveGame, getDialogue, completeOrder,
   renderStudyBook, speakChinese, updateHUD, showToast,
-  recordWrongAnswer, blackboardForLesson, teacherModeFor, speakTone
+  recordWrongAnswer, blackboardForLesson, teacherModeNow, speakTone,
+  currentClass, scheduleBlackboard
 } from './gameplay.js';
+import { openCalligraphy } from './calligraphy.js';
 
 // ---------------------------------------------------------------------------
 // Trạng thái lưu
@@ -535,14 +537,20 @@ function openDialogue(npcId) {
         const bb = blackboardForLesson(lessonId);
         if (bb && bb.hanzi) env.setBlackboardText(bb.hanzi, bb.pinyin || '');
       }
-      if (typeof teacherModeFor === 'function') {
+      if (typeof teacherModeNow === 'function') {
         const teacher = npcs.find((n) => n.id === 'teacher');
-        if (teacher && typeof teacher.setMode === 'function') teacher.setMode(teacherModeFor(state, lessonId));
+        // Tư thế thầy theo GIỜ HỌC THẬT (A2): trong giờ thì 'teach',
+        // ngoài giờ thì 'read' — kể cả khi đang ôn bài cũ.
+        if (teacher && typeof teacher.setMode === 'function') teacher.setMode(teacherModeNow(new Date(), state, lessonId));
       }
     } catch (_err) { /* bảng/tư thế thầy là phụ: không vỡ hội thoại */ }
   }
-  currentDialogue = { npcId, quest: dlg.quest };
+  currentDialogue = { npcId, quest: dlg.quest, order: dlg.order || null };
   dialogueOpen = true;
+  // Chân dung thầy đồ (A1): chỉ hiện khi nói chuyện với thầy, các NPC
+  // khác không có chân dung nên ẩn đi (kể cả khi vừa nói chuyện với thầy).
+  const portraitEl = document.getElementById('dialogue-portrait');
+  if (portraitEl) portraitEl.classList.toggle('hidden', npcId !== 'teacher');
   clickTarget = null;
   pendingNpcId = null;
   document.getElementById('dialogue-npc').textContent = dlg.npcName;
@@ -561,6 +569,7 @@ function openDialogue(npcId) {
       escapeHtml(ex.pinyin) + ' — ' + escapeHtml(ex.meaning);
     document.getElementById('dialogue-question').textContent = q.question;
     const optsEl = document.getElementById('dialogue-options');
+    optsEl.classList.remove('order-options');
     optsEl.innerHTML = '';
     (q.options || q.choices || []).forEach((opt, idx) => {
       const b = document.createElement('button');
@@ -569,9 +578,37 @@ function openDialogue(npcId) {
       b.addEventListener('click', () => answerQuiz(b, idx));
       optsEl.appendChild(b);
     });
+  } else if (dlg.order) {
+    // Giai đoạn B — Phố Hoa: gọi món bằng tiếng Trung. Dùng lại đúng panel
+    // hội thoại cũ (chữ + Pinyin + nghĩa + nút nghe), chỉ đổi nội dung.
+    const o = dlg.order;
+    listenText = o.askHanzi; // nút 🔊 đọc câu hỏi của người bán
+    lessonEl.classList.remove('hidden');
+    document.getElementById('dialogue-hanzi').textContent = o.askHanzi;
+    document.getElementById('dialogue-pinyin').textContent = o.askPinyin;
+    document.getElementById('dialogue-meaning').textContent = 'Nghĩa: ' + o.askMeaning;
+    document.getElementById('dialogue-example').innerHTML =
+      'Bạn muốn gọi: <span class="hanzi">' + escapeHtml(o.item.hanzi) + '</span> (' +
+      escapeHtml(o.item.pinyin) + ') — ' + escapeHtml(o.item.meaning) +
+      '.<br>Thực đơn ' + escapeHtml(o.shopName) + ': ' + escapeHtml(o.menuText) +
+      ' (đã gọi ' + o.progress.ordered + '/' + o.progress.total + ' món' +
+      (o.progress.complete ? ' — đã thưởng thức hết thực đơn!' : '') + ')';
+    document.getElementById('dialogue-question').textContent =
+      'Bạn sẽ nói thế nào để gọi ' + o.item.hanzi + ' (' + o.item.meaning + ')?';
+    const optsEl = document.getElementById('dialogue-options');
+    optsEl.classList.add('order-options'); // câu gọi món dài: xếp 1 cột
+    optsEl.innerHTML = '';
+    o.options.forEach((opt, idx) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = opt.hanzi + ' (' + opt.pinyin + ') — ' + opt.meaning;
+      b.addEventListener('click', () => answerOrder(b, idx));
+      optsEl.appendChild(b);
+    });
   } else {
     listenText = '你好';
     lessonEl.classList.add('hidden');
+    document.getElementById('dialogue-options').classList.remove('order-options');
     document.getElementById('dialogue-question').textContent = '';
   }
   document.getElementById('dialogue-panel').classList.remove('hidden');
@@ -607,6 +644,41 @@ function escapeHtml(v) {
   return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// Giai đoạn B — Phố Hoa: trả lời câu gọi món.
+// Sai → người bán sửa lỗi cụ thể (whyWrong), chỉ khóa nút vừa chọn, cho
+// chọn lại, không trừ XP. Đúng → món vào kho đồ, cộng XP, cập nhật HUD.
+function answerOrder(btn, idx) {
+  if (!currentDialogue || !currentDialogue.order) return;
+  const o = currentDialogue.order;
+  const optsEl = document.getElementById('dialogue-options');
+  const questionEl = document.getElementById('dialogue-question');
+  if (idx === o.correctIndex) {
+    btn.classList.add('correct');
+    optsEl.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+    let result = null;
+    try {
+      if (typeof completeOrder === 'function') result = completeOrder(state, o.shopId, o.item.id);
+    } catch (_err) { /* cộng XP/lưu lỗi: vẫn báo đúng, món có thể chưa lưu */ }
+    if (result) updateHUD(state);
+    const xp = result ? result.xp : o.xpFirst;
+    let msg = 'Chính xác! +' + xp + ' XP — Bạn nhận được ' + o.item.hanzi + ' (' + o.item.meaning + '), món đã vào kho đồ (xem trong Sổ học tập).';
+    if (result && result.shopComplete) {
+      msg += ' 🎉 Bạn đã thưởng thức hết thực đơn của ' + o.shopName + '!';
+    } else if (result) {
+      msg += ' Thực đơn ' + o.shopName + ': đã gọi ' + result.orderedCount + '/' + result.total + ' món.';
+    }
+    questionEl.textContent = msg;
+    showToast('Đã gọi món: ' + o.item.hanzi + ' (+' + xp + ' XP)');
+  } else {
+    btn.classList.add('wrong');
+    btn.disabled = true;
+    const opt = o.options[idx];
+    const why = opt && opt.whyWrong ? opt.whyWrong : 'Chưa đúng, hãy thử câu khác nhé!';
+    questionEl.textContent = 'Chưa đúng — ' + why;
+    showToast('Chưa đúng, người bán đã sửa lỗi cho bạn — thử lại nhé!');
+  }
+}
+
 document.getElementById('btn-listen').addEventListener('click', () => speakChinese(listenText));
 document.getElementById('btn-close-dialogue').addEventListener('click', closeAllPanels);
 
@@ -616,7 +688,27 @@ document.getElementById('btn-study').addEventListener('click', () => {
   document.getElementById('study-panel').classList.remove('hidden');
 });
 // Nút nghe từng thanh điệu trong Sổ học tập (gameplay.js render ra .tone-btn)
+// và nút mở Lớp Luyện chữ (#btn-calligraphy, js/calligraphy.js).
 document.getElementById('study-content').addEventListener('click', (e) => {
+  const c = e.target && e.target.closest ? e.target.closest('#btn-calligraphy') : null;
+  if (c) {
+    // Mở lớp Luyện chữ trên nền Sổ học tập (panel z-70 phủ lên trên; Sổ vẫn
+    // mở phía dưới nên phím di chuyển vẫn bị chặn trong lúc luyện chữ).
+    try {
+      openCalligraphy(state, {
+        onAwardXP: (xp) => {
+          if (typeof xp === 'number' && xp > 0) {
+            state.xp += xp;
+            saveGame(state);
+            updateHUD(state);
+            showToast('Luyện chữ: +' + xp + ' XP');
+          }
+        },
+        onSave: () => saveGame(state)
+      });
+    } catch (_err) { /* luyện chữ lỗi: không vỡ game */ }
+    return;
+  }
   const b = e.target && e.target.closest ? e.target.closest('.tone-btn') : null;
   if (!b) return;
   try { if (typeof speakTone === 'function') speakTone(b.dataset.toneBase || 'ma', parseInt(b.dataset.tone || '0', 10)); } catch (_err) { /* nghe phát âm là phụ */ }
@@ -635,6 +727,34 @@ document.getElementById('btn-close-study').addEventListener('click', closeAllPan
 document.getElementById('btn-help').addEventListener('click', () => {
   document.getElementById('help-panel').classList.toggle('hidden');
 });
+
+// ---------------------------------------------------------------------------
+// A2 — Đồng bộ tư thế thầy theo giờ học thật (giờ địa phương của người
+// chơi). Kiểm tra mỗi 30 giây, KHÔNG chạy mỗi frame. Trong giờ học thầy
+// ở mode 'teach', ngoài giờ thầy ở mode 'read' (tự đọc sách).
+// Bảng đen chỉ ghi lại khi ĐỔI buổi (vào/ra giờ học hoặc đổi lớp), không
+// ghi đè liên tục, để khỏi xóa chữ bài giảng khi đang nói chuyện với thầy.
+// ---------------------------------------------------------------------------
+let lastScheduleKey = null;
+function syncTeacherSchedule(now) {
+  try {
+    const teacher = npcs.find((n) => n.id === 'teacher');
+    if (!teacher || typeof teacher.setMode !== 'function') return;
+    const at = now instanceof Date ? now : new Date();
+    if (typeof teacherModeNow === 'function') teacher.setMode(teacherModeNow(at, state));
+    const cls = typeof currentClass === 'function' ? currentClass(at) : null;
+    const key = cls ? cls.classId + '@' + cls.start.getTime() : 'off';
+    if (key !== lastScheduleKey) {
+      lastScheduleKey = key;
+      if (env && typeof env.setBlackboardText === 'function' && typeof scheduleBlackboard === 'function') {
+        const bb = scheduleBlackboard(at, state);
+        if (bb && bb.hanzi) env.setBlackboardText(bb.hanzi, bb.pinyin || '');
+      }
+    }
+  } catch (_err) { /* đồng bộ lịch là phụ: không vỡ game */ }
+}
+syncTeacherSchedule();
+setInterval(() => syncTeacherSchedule(), 30000);
 
 // ---------------------------------------------------------------------------
 // Chất lượng đồ họa Thấp / Trung / Cao
@@ -682,7 +802,7 @@ document.getElementById('btn-start').addEventListener('click', () => {
   const name = (nameInput.value || '').trim() || saved.playerName || 'Học trò';
   // Tên khác với bản lưu có XP -> nhân vật mới, bắt đầu lại từ đầu.
   if (name !== saved.playerName && saved.xp > 0) {
-    state = { playerName: name, xp: 0, completed: [], currentQuest: null };
+    state = { playerName: name, xp: 0, completed: [], currentQuest: null, inventory: {}, calligraphy: {} };
   } else {
     state = { ...saved, playerName: name, completed: [...saved.completed] };
   }

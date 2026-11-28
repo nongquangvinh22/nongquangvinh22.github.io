@@ -56,6 +56,37 @@
 
 <!-- Hội thoại / bài học -->
 <div id="dialogue-panel" class="panel hidden">
+  <!-- Chân dung thầy đồ 2D tự vẽ bằng SVG (A1) — chỉ hiện khi gặp thầy -->
+  <div id="dialogue-portrait" class="hidden" aria-hidden="true">
+    <svg viewBox="0 0 120 120" role="img" aria-label="Chân dung Thầy Đồ Lâm">
+      <title>Thầy Đồ Lâm</title>
+      <circle cx="60" cy="60" r="58" fill="#f7ead0" stroke="#c9973f" stroke-width="3"/>
+      <circle cx="60" cy="60" r="51" fill="none" stroke="#c9973f" stroke-width="1" opacity="0.4"/>
+      <!-- Áo dài cổ đứng navy -->
+      <path d="M22 118 Q28 88 60 84 Q92 88 98 118 Z" fill="#1f2a4d"/>
+      <path d="M52 87 L60 98 L68 87" fill="none" stroke="#c9973f" stroke-width="2.5"/>
+      <path d="M30 108 Q60 96 90 108" fill="none" stroke="#c9973f" stroke-width="1.5" opacity="0.7"/>
+      <!-- Cổ + mặt -->
+      <rect x="55" y="76" width="10" height="12" fill="#e8b98a"/>
+      <ellipse cx="60" cy="57" rx="24" ry="26" fill="#f2c89b"/>
+      <!-- Râu trắng -->
+      <path d="M40 70 Q42 99 60 103 Q78 99 80 70 Q74 83 60 83 Q46 83 40 70 Z" fill="#f5f2e8"/>
+      <!-- Khăn xếp đen -->
+      <path d="M35 50 C35 24 48 15 60 15 C72 15 85 24 85 50 C78 38 68 34 60 34 C52 34 42 38 35 50 Z" fill="#23252b"/>
+      <path d="M44 26 Q52 20 60 20 M68 22 Q76 25 79 32" fill="none" stroke="#4a4d55" stroke-width="2"/>
+      <!-- Lông mày trắng, mắt, kính gọng tròn -->
+      <path d="M43 51 Q49 48 55 51 M65 51 Q71 48 77 51" fill="none" stroke="#f5f2e8" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="49" cy="58" r="2.2" fill="#2a1c08"/>
+      <circle cx="71" cy="58" r="2.2" fill="#2a1c08"/>
+      <circle cx="49" cy="58" r="8" fill="rgba(255,255,255,0.12)" stroke="#3a2a18" stroke-width="2"/>
+      <circle cx="71" cy="58" r="8" fill="rgba(255,255,255,0.12)" stroke="#3a2a18" stroke-width="2"/>
+      <path d="M57 58 L63 58 M41 57 L36 54 M79 57 L84 54" fill="none" stroke="#3a2a18" stroke-width="2"/>
+      <!-- Mũi, ria mép, miệng cười mỉm -->
+      <path d="M60 60 L58 68 L62 68" fill="none" stroke="#d8a06a" stroke-width="1.8"/>
+      <path d="M48 72 Q60 68 72 72 Q66 76 60 76 Q54 76 48 72 Z" fill="#f5f2e8"/>
+      <path d="M55 81 Q60 84 65 80" fill="none" stroke="#7a2e2e" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </div>
   <h2 id="dialogue-npc">Người làng</h2>
   <p id="dialogue-text"></p>
   <div id="dialogue-lesson" class="hidden">
@@ -101,7 +132,8 @@
     <h2>HÁN LÂM KÝ</h2>
     <p>Chào mừng đến làng Thanh Khê (青溪村)! Bạn là một thư sinh trẻ bắt đầu
     hành trình học tiếng Trung và thi đỗ khoa cử: từ 学童 đến 进士.
-    Hãy trò chuyện với thầy đồ, cô bán bánh và anh đưa thư trong làng.</p>
+    Hãy trò chuyện với thầy đồ, cô bán bánh và anh đưa thư trong làng — rồi
+    ghé quán trà, quán mì gọi món bằng tiếng Trung nhé.</p>
     <label for="player-name"><b>Tên nhân vật của bạn</b></label>
     <input id="player-name" type="text" maxlength="20" placeholder="Ví dụ: Quang Vinh" autocomplete="off">
     <p style="margin:4px 0;">Chất lượng đồ họa:</p>

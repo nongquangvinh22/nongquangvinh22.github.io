@@ -122,7 +122,14 @@ button.secondary { background: linear-gradient(180deg, #fdf6e3, #e8d9b0); }
 #dialogue-options button { font-size: 14px; }
 #dialogue-options button.correct { background: #4caf50; color: #fff; border-color: #2e7d32; }
 #dialogue-options button.wrong { background: #e57373; color: #fff; border-color: #b3261e; }
+/* Giai đoạn B — Phố Hoa: câu gọi món dài (chữ + Pinyin + nghĩa) nên xếp 1 cột */
+#dialogue-options.order-options { grid-template-columns: 1fr; }
+#dialogue-options.order-options button { text-align: left; }
 #dialogue-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
+
+/* ---------- Chân dung thầy đồ (SVG tự vẽ, chỉ hiện khi gặp thầy) ---------- */
+#dialogue-portrait { float: left; width: 86px; height: 86px; margin: 2px 12px 6px 0; }
+#dialogue-portrait svg { display: block; width: 100%; height: 100%; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
 
 /* ---------- Sổ học tập ---------- */
 #study-panel {
@@ -130,6 +137,8 @@ button.secondary { background: linear-gradient(180deg, #fdf6e3, #e8d9b0); }
   z-index: 40; width: min(640px, 94vw); max-height: 84vh; overflow-y: auto;
 }
 .study-item { border-bottom: 1px solid #d8c49a; padding: 10px 2px; }
+.study-schedule { list-style: none; font-size: 14px; line-height: 1.7; margin: 6px 0; }
+.study-schedule li::before { content: "🕰️ "; }
 .study-item h3 { font-size: 16px; margin-bottom: 4px; }
 .study-item--done h3 { color: #2e7d32; }
 .study-hanzi { font-family: "Noto Serif SC", serif; font-size: 24px; }
@@ -234,6 +243,7 @@ button.secondary { background: linear-gradient(180deg, #fdf6e3, #e8d9b0); }
 }
 @media (max-width: 768px) {
   #mobile-controls { display: block; }
+  #dialogue-portrait { width: 64px; height: 64px; }
   #quest-panel { width: 200px; }
   #hud { min-width: 190px; }
   #start-card h1 { font-size: 34px; }

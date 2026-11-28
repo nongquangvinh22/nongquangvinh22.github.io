@@ -1,6 +1,6 @@
 // Hán Lâm Ký (汉林记) — Nhân vật 3D
 // © Nông Quang Vinh
-// Module nhân vật: Thư Sinh (người chơi) + 3 NPC.
+// Module nhân vật: Thư Sinh (người chơi) + NPC trong làng.
 // Dựng hoàn toàn bằng hình học trong code (Three.js 0.180), không tải asset ngoài.
 // Tuyệt đối không dùng khối lập phương làm người: đầu, thân, tay, chân đều là
 // hình cầu / hình trụ thuôn / hình nón / torus / LatheGeometry / CapsuleGeometry.
@@ -205,6 +205,11 @@ function makeHead({ hairStyle = 'scholar', beard = false } = {}) {
     head.add(sphere(0.17, mat(0xd95f7a, 0.8), 0, 0.05, -0.02, 1, 0.9, 1));
     head.add(sphere(0.05, mat(0xd95f7a, 0.8), 0.14, -0.02, -0.08)); // nút khăn
     head.add(sphere(0.035, mat(0x2e7d4f, 0.8), -0.14, 0.10, 0.02)); // kẹp tóc lá
+  } else if (hairStyle === 'chef') {
+    // Giai đoạn B — Phố Hoa: khăn trắng quấn đầu của chủ quán mì + nút
+    // thắt trước trán (phân biệt với khăn hồng của cô bán bánh).
+    head.add(sphere(0.17, mat(0xf5f2e8, 0.85), 0, 0.05, -0.02, 1, 0.9, 1));
+    head.add(sphere(0.05, mat(0xf5f2e8, 0.85), 0, 0.13, 0.11)); // nút khăn
   } else if (hairStyle === 'courier') {
     // Mũ rơm: chóp cầu dẹt + vành nón rộng (hình nón dẹt)
     head.add(sphere(0.15, STRAW, 0, 0.10, 0, 1, 0.55, 1));
@@ -371,7 +376,7 @@ export function createPlayer(scene, startPos, displayName) {
 }
 
 // ---------------------------------------------------------------------------
-// 3 NPC
+// NPC TRONG LÀNG
 // ---------------------------------------------------------------------------
 export function createNPCs(scene) {
   const npcs = [];
@@ -526,6 +531,120 @@ export function createNPCs(scene) {
         rightArm.rotation.z = -0.10;
         leftArm.rotation.x = -1.15 + Math.sin(time * 2.0) * 0.03;
         head.rotation.y = Math.sin(time * 0.7) * 0.12; // ngó khách qua lại
+        head.rotation.x = Math.sin(time * 1.4) * 0.03;
+        leftLeg.rotation.x = 0;
+        rightLeg.rotation.x = 0;
+      },
+    });
+  }
+
+  // --- 2b. Ông Trà — chủ quán trà 茶館, áo xanh ngọc đậm, tóc bạc + râu
+  // trắng, cầm ấm trà (giai đoạn B — Phố Hoa) ---
+  {
+    const robeMat = mat(0x2f5d50, 0.8); // xanh ngọc đậm
+    const human = buildHuman({
+      robeMat, trimMat: GOLD, pantsMat: mat(0x2a2a33, 0.8),
+      hairStyle: 'elder', beard: true, beltColor: 0x8c2f2f, name: 'Ông Trà',
+    });
+    const { group, body, head, leftArm, rightArm, leftLeg, rightLeg } = human;
+    // Trước quán trà 茶館 (-36,-8): đứng ở (-32.6,-3.6) — ngoài collider nhà
+    // (r 3.41) và bàn trà (-33,-5.5, r 1.0), quay mặt về làng, đi tới được.
+    group.position.set(-32.6, 0, -3.6);
+    group.rotation.y = Math.atan2(0 - (-32.6), 0 - (-3.6));
+    scene.add(group);
+
+    // Ấm trà nhỏ cầm tay phải: thân cầu + vòi + quai
+    const teapot = new THREE.Group();
+    teapot.add(sphere(0.07, mat(0x3a5a8c, 0.5), 0, 0, 0));
+    const spout = cyl(0.012, 0.02, 0.12, mat(0x3a5a8c, 0.5), 0.08, 0.03, 0);
+    spout.rotation.z = -0.9;
+    teapot.add(spout);
+    teapot.add(torus(0.045, 0.01, mat(0x3a5a8c, 0.5), -0.075, 0.01, 0));
+    teapot.position.set(0, -0.58, 0.05);
+    rightArm.add(teapot);
+    rightArm.rotation.x = -0.7; // giơ ấm trà ra trước
+    rightArm.rotation.z = -0.12;
+    leftArm.rotation.x = -0.3;
+
+    let t0 = 0;
+    npcs.push({
+      id: 'teaOwner',
+      name: 'Ông Trà',
+      role: 'Chủ quán trà trước quán trà',
+      group,
+      home: { x: -32.6, z: -3.6 },
+      update(dt, t) {
+        const step = Math.min(Math.max(dt || 0, 0), 0.05);
+        t0 += step;
+        const time = typeof t === 'number' ? t : t0;
+        // Đứng pha trà: thở nhẹ, tay phải nghiêng ấm rót trà nhịp nhàng
+        body.position.y = Math.sin(time * 1.7) * 0.012;
+        rightArm.rotation.x = -0.7 + Math.sin(time * 1.7) * 0.12;
+        leftArm.rotation.x = -0.3 + Math.sin(time * 1.7) * 0.03;
+        head.rotation.y = Math.sin(time * 0.6) * 0.12;
+        head.rotation.x = Math.sin(time * 1.2) * 0.03;
+        leftLeg.rotation.x = 0;
+        rightLeg.rotation.x = 0;
+      },
+    });
+  }
+
+  // --- 2c. Anh Mì — chủ quán mì ở chợ, áo nâu cam, khăn trắng, bưng bát
+  // mì (giai đoạn B — Phố Hoa) ---
+  {
+    const robeMat = mat(0xa85b32, 0.8); // nâu cam
+    const human = buildHuman({
+      robeMat, trimMat: mat(0xf5ead0, 0.85), pantsMat: mat(0x2a2a33, 0.8),
+      hairStyle: 'chef', beltColor: 0x2e7d4f, name: 'Anh Mì',
+      hemY: 0.55, hemR: 0.24,
+    });
+    const { group, body, head, leftArm, rightArm, leftLeg, rightLeg } = human;
+    // Tạp dề kem như cô bán bánh (đổi màu áo/khăn/đạo cụ để phân biệt)
+    const apron = sphere(0.19, PAPER, 0, 1.05, 0.14, 1, 1.25, 0.45);
+    body.add(apron);
+    // Phía Đông chợ, ngoài collider các sạp (r 1.4): (-9,11.5), quay mặt
+    // về làng, không chắn lối đi giữa các sạp.
+    group.position.set(-9, 0, 11.5);
+    group.rotation.y = Math.atan2(0 - (-9), 0 - 11.5);
+    scene.add(group);
+
+    // Bát mì trên tay trái: bát + sợi mì + đôi đũa
+    const bowl = new THREE.Group();
+    bowl.add(cyl(0.13, 0.09, 0.09, mat(0xe8e0d0, 0.4), 0, 0, 0));
+    const noodleMat = mat(0xe8b96a, 0.7);
+    [-0.04, 0.03].forEach((nx) => {
+      const strand = torus(0.05, 0.012, noodleMat, nx, 0.05, 0);
+      strand.rotation.x = Math.PI / 2;
+      bowl.add(strand);
+    });
+    [-1, 1].forEach((s) => {
+      const stick = cyl(0.008, 0.006, 0.22, LEATHER, s * 0.03, 0.12, 0.02);
+      stick.rotation.z = s * 0.15;
+      stick.rotation.x = 0.25;
+      bowl.add(stick);
+    });
+    bowl.position.set(0, -0.60, 0.04);
+    leftArm.add(bowl);
+    leftArm.rotation.x = -1.15; // bưng bát ra trước, giữ ngang
+    leftArm.rotation.z = 0.12;
+
+    let t0 = 0;
+    npcs.push({
+      id: 'noodleOwner',
+      name: 'Anh Mì',
+      role: 'Chủ quán mì ở chợ làng',
+      group,
+      home: { x: -9, z: 11.5 },
+      update(dt, t) {
+        const step = Math.min(Math.max(dt || 0, 0), 0.05);
+        t0 += step;
+        const time = typeof t === 'number' ? t : t0;
+        // Thở nhẹ; tay phải khuấy mì, tay trái bưng bát giữ steady
+        body.position.y = Math.sin(time * 2.0) * 0.012;
+        rightArm.rotation.x = -0.55 + Math.sin(time * 2.4) * 0.3;
+        rightArm.rotation.z = -0.10;
+        leftArm.rotation.x = -1.15 + Math.sin(time * 2.0) * 0.03;
+        head.rotation.y = Math.sin(time * 0.7) * 0.12;
         head.rotation.x = Math.sin(time * 1.4) * 0.03;
         leftLeg.rotation.x = 0;
         rightLeg.rotation.x = 0;

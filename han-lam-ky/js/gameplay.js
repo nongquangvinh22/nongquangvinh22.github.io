@@ -14,6 +14,11 @@
 //  (c) Cấp bậc khoa cử CHỈ đổi khi đỗ kỳ thi trong trường thi
 //      (gradeExam đậu → rankIndex + 1). XP chỉ là điểm tích lũy,
 //      một mình XP KHÔNG đủ lên cấp.
+//  (d) Lịch học (A2, 28/11): chỉ đổi tư thế thầy + hiển thị giờ học;
+//      KHÔNG chặn học ngoài giờ — bài vỡ lòng vẫn tự chọn như (a).
+//  (e) Giọng thầy đồ (A1, 28/11): nghiêm khắc mà dí dỏm, khen đúng mực,
+//      chỉ lỗi cụ thể qua getWrongExplanation; chỉ đổi lời văn, không
+//      đổi bài học, quiz, XP hay luồng nhiệm vụ.
 //
 // CÁCH NỐI VỚI main.js (parent cần làm, gameplay.js không tự sửa main.js):
 //  - answerQuiz() nhánh trả lời SAI: gọi recordWrongAnswer(state, q.id)
@@ -366,7 +371,12 @@ export function loadSave() {
   const defaults = {
     playerName: 'Học trò', xp: 0, completed: [], currentQuest: null,
     rankIndex: 0, lessonsCompleted: [], vocabStats: {}, examResults: [],
-    reviewDue: {}, wrongAttempts: {}
+    reviewDue: {}, wrongAttempts: {},
+    // Giai đoạn B — Phố Hoa: kho đồ { [itemId]: số lượng }. Save cũ thiếu
+    // field này thì mặc định {} (tương thích ngược, không mất tiến trình).
+    inventory: {},
+    // Lớp Luyện chữ (A3): tiến trình { [hanzi]: { attempts, best, last, done } }.
+    calligraphy: {}
   };
   try {
     if (typeof localStorage === 'undefined') return { ...defaults, completed: [], lessonsCompleted: [] };
@@ -385,6 +395,18 @@ export function loadSave() {
     for (const id of completed) {
       if (id.indexOf('lesson-') === 0 && !lessonsCompleted.includes(id)) lessonsCompleted.push(id);
     }
+    // Kho đồ: chỉ giữ { tên món: số lượng nguyên dương } hợp lệ.
+    const inventory = {};
+    if (parsed.inventory && typeof parsed.inventory === 'object' && !Array.isArray(parsed.inventory)) {
+      for (const key of Object.keys(parsed.inventory)) {
+        const v = parsed.inventory[key];
+        if (typeof key === 'string' && typeof v === 'number' && Number.isFinite(v) && v > 0) {
+          inventory[key] = Math.floor(v);
+        }
+      }
+    }
+    // Luyện chữ: chỉ giữ { chữ: { attempts, best, last, done } } hợp lệ.
+    const calligraphy = cleanCalligraphy(parsed.calligraphy);
     return {
       playerName: typeof parsed.playerName === 'string' && parsed.playerName.trim()
         ? parsed.playerName
@@ -407,7 +429,9 @@ export function loadSave() {
         : {},
       wrongAttempts: parsed.wrongAttempts && typeof parsed.wrongAttempts === 'object' && !Array.isArray(parsed.wrongAttempts)
         ? parsed.wrongAttempts
-        : {}
+        : {},
+      inventory,
+      calligraphy
     };
   } catch (_err) {
     return { ...defaults, completed: [], lessonsCompleted: [] };
@@ -437,12 +461,47 @@ export function saveGame(state) {
       vocabStats: state.vocabStats && typeof state.vocabStats === 'object' ? state.vocabStats : {},
       examResults: Array.isArray(state.examResults) ? state.examResults : [],
       reviewDue: state.reviewDue && typeof state.reviewDue === 'object' ? state.reviewDue : {},
-      wrongAttempts: state.wrongAttempts && typeof state.wrongAttempts === 'object' ? state.wrongAttempts : {}
+      wrongAttempts: state.wrongAttempts && typeof state.wrongAttempts === 'object' ? state.wrongAttempts : {},
+      inventory: cleanInventory(state.inventory),
+      calligraphy: cleanCalligraphy(state.calligraphy)
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   } catch (_err) {
     // Không có localStorage hoặc bị chặn: bỏ qua lặng lẽ, không làm vỡ game.
   }
+}
+
+// Kho đồ lưu xuống chỉ giữ { tên món: số lượng nguyên dương } hợp lệ.
+function cleanInventory(inventory) {
+  const out = {};
+  if (inventory && typeof inventory === 'object' && !Array.isArray(inventory)) {
+    for (const key of Object.keys(inventory)) {
+      const v = inventory[key];
+      if (typeof key === 'string' && typeof v === 'number' && Number.isFinite(v) && v > 0) {
+        out[key] = Math.floor(v);
+      }
+    }
+  }
+  return out;
+}
+
+// Luyện chữ lưu xuống chỉ giữ { chữ: { attempts, best, last, done } } hợp lệ.
+function cleanCalligraphy(calligraphy) {
+  const out = {};
+  if (calligraphy && typeof calligraphy === 'object' && !Array.isArray(calligraphy)) {
+    for (const key of Object.keys(calligraphy)) {
+      const v = calligraphy[key];
+      if (typeof key !== 'string' || !v || typeof v !== 'object' || Array.isArray(v)) continue;
+      const num = (x) => (typeof x === 'number' && Number.isFinite(x) ? Math.max(0, Math.floor(x)) : 0);
+      out[key] = {
+        attempts: num(v.attempts),
+        best: Math.max(0, Math.min(100, num(v.best))),
+        last: Math.max(0, Math.min(100, num(v.last))),
+        done: v.done === true
+      };
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -476,6 +535,15 @@ function nextLesson(state) {
     if (!isLessonDone(state, lesson.id)) return lesson;
   }
   return null;
+}
+
+// Bài vỡ lòng gần nhất mà học trò đã làm xong (để thầy khen đúng mực).
+function lastDoneLesson(state) {
+  let prev = null;
+  for (const lesson of LESSONS) {
+    if (isLessonDone(state, lesson.id)) prev = lesson;
+  }
+  return prev;
 }
 
 // Xáo trộn 4 lựa chọn, correctIndex khớp vị trí mới sau khi xáo.
@@ -519,6 +587,187 @@ function lessonAsQuest(lesson) {
 }
 
 // ---------------------------------------------------------------------------
+// Giai đoạn B — Phố Hoa: gọi món bằng tiếng Trung (3 quán).
+//  - Sạp hoa quả: Cô Bán Bánh kiêm thêm (giữ nguyên nhiệm vụ mua bánh bao:
+//    chưa xong nhiệm vụ 'bun' thì getDialogue vẫn trả quest cũ; xong rồi
+//    mới mở gọi món hoa quả).
+//  - Quán trà: Ông Trà (trước quán trà 茶館, (-32.6,-3.6)).
+//  - Quán mì: Anh Mì (cạnh chợ, (-9,11.5)).
+// Mỗi quán 3 món. Mỗi lượt gọi: người bán hỏi 1 câu, người chơi chọn câu
+// gọi món đúng trong 4 lựa chọn (1 đúng, 1 sai ngữ pháp, 1 lạc đề, 1 gần
+// đúng nhưng thiếu lễ phép). Sai → sửa lỗi cụ thể, cho chọn lại, không
+// trừ XP, không khóa. Đúng → món vào kho đồ (inventory), +30 XP lần đầu
+// gọi món đó, +10 XP các lần gọi lại. Gọi đủ 3 món của một quán = đã
+// thưởng thức hết thực đơn (suy ra từ inventory, không thêm field riêng).
+// ---------------------------------------------------------------------------
+export const ORDER_XP_FIRST = 30;
+export const ORDER_XP_REPEAT = 10;
+
+export const ORDER_SHOPS = [
+  {
+    shopId: 'fruit', npcId: 'seller', shopName: 'Sạp hoa quả',
+    npcName: 'Cô bán bánh',
+    askHanzi: '你要买什么水果？', askPinyin: 'Nǐ yào mǎi shénme shuǐguǒ?',
+    askMeaning: 'Bạn muốn mua hoa quả gì?',
+    measure: { hanzi: '个', pinyin: 'gè', onePinyin: 'yí gè', servingVi: '' },
+    items: [
+      { id: 'apple', hanzi: '苹果', pinyin: 'píngguǒ', meaning: 'quả táo' },
+      { id: 'banana', hanzi: '香蕉', pinyin: 'xiāngjiāo', meaning: 'quả chuối' },
+      { id: 'grape', hanzi: '葡萄', pinyin: 'pútao', meaning: 'quả nho' }
+    ]
+  },
+  {
+    shopId: 'tea', npcId: 'teaOwner', shopName: 'Quán trà',
+    npcName: 'Ông chủ quán trà',
+    askHanzi: '你要喝什么茶？', askPinyin: 'Nǐ yào hē shénme chá?',
+    askMeaning: 'Bạn muốn uống trà gì?',
+    measure: { hanzi: '杯', pinyin: 'bēi', onePinyin: 'yì bēi', servingVi: 'chén ' },
+    items: [
+      { id: 'tea', hanzi: '茶', pinyin: 'chá', meaning: 'trà' },
+      { id: 'green-tea', hanzi: '绿茶', pinyin: 'lǜchá', meaning: 'trà xanh' },
+      { id: 'black-tea', hanzi: '红茶', pinyin: 'hóngchá', meaning: 'hồng trà' }
+    ]
+  },
+  {
+    shopId: 'noodle', npcId: 'noodleOwner', shopName: 'Quán mì',
+    npcName: 'Anh chủ quán mì',
+    askHanzi: '你要吃什么面？', askPinyin: 'Nǐ yào chī shénme miàn?',
+    askMeaning: 'Bạn muốn ăn mì gì?',
+    measure: { hanzi: '碗', pinyin: 'wǎn', onePinyin: 'yì wǎn', servingVi: 'bát ' },
+    items: [
+      { id: 'noodles', hanzi: '面条', pinyin: 'miàntiáo', meaning: 'mì sợi' },
+      { id: 'beef-noodles', hanzi: '牛肉面', pinyin: 'niúròu miàn', meaning: 'mì bò' },
+      { id: 'egg-noodles', hanzi: '鸡蛋面', pinyin: 'jīdàn miàn', meaning: 'mì trứng' }
+    ]
+  }
+];
+
+export const ORDER_SHOP_BY_NPC = Object.fromEntries(ORDER_SHOPS.map((s) => [s.npcId, s]));
+export const ORDER_SHOP_BY_ID = Object.fromEntries(ORDER_SHOPS.map((s) => [s.shopId, s]));
+export const ORDER_ITEM_BY_ID = {};
+for (const shop of ORDER_SHOPS) {
+  for (const item of shop.items) ORDER_ITEM_BY_ID[item.id] = { ...item, shopId: shop.shopId, shopName: shop.shopName };
+}
+
+function inventoryOf(state) {
+  return state && state.inventory && typeof state.inventory === 'object' && !Array.isArray(state.inventory)
+    ? state.inventory
+    : {};
+}
+
+// Tiến độ thực đơn của một quán: đã gọi mấy món / tổng số món, đủ 3 món
+// thì complete = true (đã thưởng thức hết thực đơn).
+export function shopOrderProgress(shopId, state) {
+  const shop = ORDER_SHOP_BY_ID[shopId] || null;
+  if (!shop) return { ordered: 0, total: 0, complete: false, orderedIds: [] };
+  const inv = inventoryOf(state);
+  const orderedIds = shop.items
+    .filter((it) => (typeof inv[it.id] === 'number' ? inv[it.id] : 0) > 0)
+    .map((it) => it.id);
+  return { ordered: orderedIds.length, total: shop.items.length, complete: orderedIds.length >= shop.items.length, orderedIds };
+}
+
+export function isShopMenuComplete(shopId, state) {
+  return shopOrderProgress(shopId, state).complete;
+}
+
+// Món tiếp theo cần gọi ở quán: món chưa gọi đầu tiên theo thứ tự thực đơn;
+// gọi hết rồi thì xoay vòng theo tổng số món đã gọi (để gọi lại món yêu thích).
+function nextOrderItem(shop, state) {
+  const inv = inventoryOf(state);
+  for (const item of shop.items) {
+    if (!((typeof inv[item.id] === 'number' ? inv[item.id] : 0) > 0)) return item;
+  }
+  let total = 0;
+  for (const item of shop.items) total += typeof inv[item.id] === 'number' ? inv[item.id] : 0;
+  return shop.items[total % shop.items.length];
+}
+
+// 4 lựa chọn gọi món cho 1 món: 1 đúng, 1 sai ngữ pháp (要 đứng cuối câu),
+// 1 lạc đề (đi học), 1 gần đúng nhưng thiếu lễ phép (给我…！ ra lệnh).
+// Xáo trộn để đáp án đúng không nằm cố định một chỗ.
+function buildOrderOptions(shop, item) {
+  const m = shop.measure;
+  const correct = {
+    kind: 'correct',
+    hanzi: '我要一' + m.hanzi + item.hanzi + '，谢谢！',
+    pinyin: 'Wǒ yào ' + m.onePinyin + ' ' + item.pinyin + ', xièxie!',
+    meaning: 'Tôi muốn một ' + m.servingVi + item.meaning + ', cảm ơn!'
+  };
+  const grammar = {
+    kind: 'grammar',
+    hanzi: '我一' + m.hanzi + item.hanzi + '要',
+    pinyin: 'Wǒ ' + m.onePinyin + ' ' + item.pinyin + ' yào',
+    meaning: 'Tôi một ' + m.servingVi + item.meaning + ' muốn (câu sai thứ tự từ)',
+    whyWrong: 'Sai thứ tự từ: động từ 要 (yào — muốn) phải đứng TRƯỚC món gọi — 我要… mới đúng, còn 我…要 là sai ngữ pháp tiếng Trung.'
+  };
+  const offTopic = {
+    kind: 'offtopic',
+    hanzi: '我要去学校。',
+    pinyin: 'Wǒ yào qù xuéxiào.',
+    meaning: 'Tôi muốn đi đến trường học (lạc đề — không phải gọi món)',
+    whyWrong: 'Lạc đề: câu này nói về việc đi học, không phải gọi món. Muốn gọi món thì phải nói tên món: 我要… + tên món.'
+  };
+  const rude = {
+    kind: 'rude',
+    hanzi: '给我' + item.hanzi + '！',
+    pinyin: 'Gěi wǒ ' + item.pinyin + '!',
+    meaning: 'Đưa tôi ' + item.meaning + '! (nghe như ra lệnh, thiếu lễ phép)',
+    whyWrong: 'Gần đúng nhưng thiếu lễ phép: 给我…！ nghe như ra lệnh. Gọi món nên nói 我要…，谢谢！ — có “muốn” và “cảm ơn” mới phải phép.'
+  };
+  const options = [correct, grammar, offTopic, rude];
+  for (let i = options.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = options[i]; options[i] = options[j]; options[j] = tmp;
+  }
+  return { options, correctIndex: options.indexOf(correct) };
+}
+
+// Hội thoại gọi món của một quán (main.js hiển thị qua nhánh dlg.order).
+// Trả null nếu npcId không phải chủ quán.
+export function getOrderDialogue(npcId, state) {
+  const shop = ORDER_SHOP_BY_NPC[npcId] || null;
+  const npc = NPCS[npcId] || null;
+  if (!shop) return null;
+  const progress = shopOrderProgress(shop.shopId, state);
+  const item = nextOrderItem(shop, state);
+  const { options, correctIndex } = buildOrderOptions(shop, item);
+  const menuText = shop.items.map((it) => it.hanzi + ' (' + it.pinyin + ')').join(' · ');
+  const greeting = progress.complete
+    ? '“' + shop.askHanzi + '” — ' + shop.askMeaning + ' Quán ta có ' + menuText + '. Bạn đã thưởng thức hết thực đơn của quán rồi đấy — gọi lại món nào bạn thích nhất nhé, nói đúng ta mới đưa cho!'
+    : '“' + shop.askHanzi + '” — ' + shop.askMeaning + ' Quán ta có ' + menuText + '. Gọi món bằng tiếng Trung nhé — nói đúng ta mới đưa cho, nói sai ta sửa cho ngay!';
+  return {
+    npcName: npc ? npc.npcName : shop.npcName,
+    greeting,
+    quest: null,
+    hint: 'Chọn câu gọi món đúng bằng tiếng Trung — chú ý thứ tự từ và nói cho lễ phép (có 谢谢).',
+    order: {
+      shopId: shop.shopId, shopName: shop.shopName, npcId: shop.npcId,
+      item, askHanzi: shop.askHanzi, askPinyin: shop.askPinyin, askMeaning: shop.askMeaning,
+      menuText, options, correctIndex, progress,
+      xpFirst: ORDER_XP_FIRST, xpRepeat: ORDER_XP_REPEAT
+    }
+  };
+}
+
+// Gọi món thành công: món vào kho đồ, cộng XP (+30 lần đầu gọi món đó,
+// +10 các lần gọi lại), lưu game. Trả null nếu shop/item/state không hợp lệ.
+export function completeOrder(state, shopId, itemId) {
+  const shop = ORDER_SHOP_BY_ID[shopId] || null;
+  const item = shop ? shop.items.find((it) => it.id === itemId) || null : null;
+  if (!state || typeof state !== 'object' || !shop || !item) return null;
+  if (!state.inventory || typeof state.inventory !== 'object' || Array.isArray(state.inventory)) state.inventory = {};
+  const before = typeof state.inventory[itemId] === 'number' ? state.inventory[itemId] : 0;
+  const firstTime = before <= 0;
+  state.inventory[itemId] = before + 1;
+  const xp = firstTime ? ORDER_XP_FIRST : ORDER_XP_REPEAT;
+  state.xp = (typeof state.xp === 'number' && Number.isFinite(state.xp) ? Math.max(0, Math.floor(state.xp)) : 0) + xp;
+  const progress = shopOrderProgress(shopId, state);
+  try { saveGame(state); } catch (_err) { /* lưu lỗi: món/XP vẫn nằm trong state */ }
+  return { xp, firstTime, orderedCount: progress.ordered, total: progress.total, shopComplete: progress.complete, item };
+}
+
+// ---------------------------------------------------------------------------
 // Đối thoại với NPC
 // Thầy đồ: ưu tiên nhiệm vụ "Chào hỏi đầu tiên" (quiz 你好 mở ngay, KHÔNG
 // chặn bởi bài vỡ lòng — Vinh chốt 27/11); xong rồi mới dẫn qua từng bài
@@ -527,15 +776,29 @@ function lessonAsQuest(lesson) {
 const NPCS = {
   teacher: {
     npcName: 'Thầy đồ',
-    greetingNew: 'Chào con! Ta là thầy đồ làng Thanh Khê. Muốn học tiếng Trung, trước hết phải biết chào hỏi. Hãy học câu “你好” (Nǐ hǎo) — Xin chào — rồi trả lời câu hỏi của ta nhé.',
-    greetingDone: 'Tốt lắm! Con đã chào hỏi rất lễ phép. “你好” — Xin chào — là câu đầu tiên trên con đường khoa cử của con.',
-    hint: 'Hãy nghe thầy đọc “你好” rồi chọn nghĩa đúng: Xin chào.'
+    greetingNew: 'Hừm, học trò mới đây à? Ta là thầy đồ làng Thanh Khê. Ở lớp ta, chữ nào ra chữ nấy: sai thì sửa, đúng thì thầy khen — không có chuyện qua loa cho xong. Bài đầu tiên: “你好” (Nǐ hǎo) — Xin chào. Nghe cho kỹ rồi hãy trả lời, đừng đoán mò.',
+    greetingDone: 'Khá lắm! “你好” con nói đã ra dáng học trò rồi. Nhưng đừng vội đắc ý — chào hỏi chỉ là bước đầu, đường khoa cử còn dài lắm.',
+    hint: 'Nghe thầy đọc “你好” cho kỹ rồi chọn nghĩa đúng: Xin chào. Đoán mò là thầy biết ngay đấy.'
   },
   seller: {
     npcName: 'Cô bán bánh',
     greetingNew: 'Bánh bao nóng hổi đây! Muốn mua bánh thì phải biết nói tiếng Trung chứ. Học câu “我要一个包子” (Wǒ yào yí gè bāozi) — Tôi muốn một cái bánh bao — rồi nói với cô nhé.',
     greetingDone: 'Cảm ơn cháu! Bánh bao của cháu đây, còn nóng hổi. Nói tiếng Trung giỏi lắm, lần sau lại ghé nhé!',
     hint: 'Hãy nghe cô đọc “我要一个包子” rồi chọn nghĩa đúng: Tôi muốn một cái bánh bao.'
+  },
+  // Giai đoạn B — Phố Hoa: 2 chủ quán mới. Lời chào trong NPCS chỉ là dự
+  // phòng — hội thoại gọi món thật do getOrderDialogue() tạo ra.
+  teaOwner: {
+    npcName: 'Ông chủ quán trà',
+    greetingNew: 'Mời vào quán trà! Muốn uống trà thì gọi món bằng tiếng Trung nhé: “你要喝什么茶？” — Bạn muốn uống trà gì?',
+    greetingDone: 'Trà ngon phải uống chậm, học chữ cũng vậy — cứ thong thả mà gọi món.',
+    hint: 'Chọn câu gọi món đúng bằng tiếng Trung — chú ý thứ tự từ và nói cho lễ phép (có 谢谢).'
+  },
+  noodleOwner: {
+    npcName: 'Anh chủ quán mì',
+    greetingNew: 'Mì nóng hổi đây! Muốn ăn mì thì gọi món bằng tiếng Trung nhé: “你要吃什么面？” — Bạn muốn ăn mì gì?',
+    greetingDone: 'Ăn mì xong lại ghé nhé! Gọi món bằng tiếng Trung càng ngày càng thạo rồi đấy.',
+    hint: 'Chọn câu gọi món đúng bằng tiếng Trung — chú ý thứ tự từ và nói cho lễ phép (có 谢谢).'
   },
   courier: {
     npcName: 'Anh đưa thư',
@@ -575,7 +838,7 @@ const QUEST_BY_NPC = {
   courier: 'thanks'
 };
 
-export function getDialogue(npcId, state) {
+export function getDialogue(npcId, state, nowArg) {
   const npc = NPCS[npcId] || null;
   const completed = state && Array.isArray(state.completed) ? state.completed : [];
   if (!npc) {
@@ -587,27 +850,57 @@ export function getDialogue(npcId, state) {
     };
   }
 
+  // Giai đoạn B — Phố Hoa: gọi món bằng tiếng Trung.
+  // Cô Bán Bánh: chưa xong nhiệm vụ mua bánh bao thì vẫn làm nhiệm vụ cũ
+  // (rơi xuống nhánh chung cuối hàm); xong rồi mới mở gọi món hoa quả.
+  if (ORDER_SHOP_BY_NPC[npcId] && !(npcId === 'seller' && !completed.includes('bun'))) {
+    const orderDlg = getOrderDialogue(npcId, state);
+    if (orderDlg) return orderDlg;
+  }
+
   // Thầy đồ: nhiệm vụ chào hỏi mở ngay (không chặn); sau đó là bài vỡ lòng.
+  // Giọng thầy (A1): nghiêm khắc mà dí dỏm — khen đúng mực khi làm đúng,
+  // chỉ lỗi CỤ THỂ khi làm sai (qua getWrongExplanation), nhắc riêng khi
+  // học trò vào lớp muộn trong giờ học (muộn >= 10 phút, xem lateMinutes).
   if (npcId === 'teacher') {
+    const now = nowArg instanceof Date ? nowArg : new Date();
+    const late = lateMinutes(now, state);
+    const lateLine = late >= 10
+      ? 'Vào lớp muộn ' + late + ' phút rồi đấy — lần sau đến sớm hơn, thầy không thích chờ. Ngồi xuống, nghe giảng, đừng để thầy nhắc lần hai. '
+      : '';
     const hello = QUESTS.find((q) => q.id === 'hello');
     if (!completed.includes('hello')) {
-      return { npcName: npc.npcName, greeting: npc.greetingNew, quest: hello, hint: npc.hint };
+      let greeting = npc.greetingNew;
+      const helloWrong = state && state.wrongAttempts && typeof state.wrongAttempts.hello === 'number'
+        ? state.wrongAttempts.hello
+        : 0;
+      if (helloWrong > 0) {
+        greeting = 'Lần trước con trả lời sai câu chào hỏi — ' + getWrongExplanation('hello') +
+          ' Thầy cho con làm lại, lần này nghe cho kỹ. ' + greeting;
+      }
+      return { npcName: npc.npcName, greeting: lateLine + greeting, quest: hello, hint: npc.hint };
     }
     const lesson = nextLesson(state);
     if (lesson) {
-      let greeting = lesson.intro + ' ' + lesson.explanation;
       const wrongCount = state && state.wrongAttempts && typeof state.wrongAttempts[lesson.id] === 'number'
         ? state.wrongAttempts[lesson.id]
         : 0;
+      const prev = lastDoneLesson(state);
+      let greeting;
       if (wrongCount > 0) {
-        greeting = 'Lần trước con trả lời sai bài này — đừng nản, ôn lại nhé. ' +
-          getWrongExplanation(lesson.id) + ' ' + greeting;
+        greeting = 'Sai rồi thì phải sửa cho đúng, không được giấu dốt. ' +
+          getWrongExplanation(lesson.id) + ' ' + lesson.intro + ' ' + lesson.explanation;
+      } else if (prev) {
+        greeting = prev.title + ' con làm đúng, thầy ghi nhận — khen thì khen, nhưng bài mới không dễ hơn đâu. ' +
+          lesson.intro + ' ' + lesson.explanation;
+      } else {
+        greeting = 'Chào hỏi xong rồi thì học cho ra học. ' + lesson.intro + ' ' + lesson.explanation;
       }
-      return { npcName: npc.npcName, greeting, quest: lessonAsQuest(lesson), hint: 'Nghe thầy giảng rồi trả lời câu hỏi của bài.' };
+      return { npcName: npc.npcName, greeting: lateLine + greeting, quest: lessonAsQuest(lesson), hint: 'Nghe thầy giảng rồi trả lời câu hỏi của bài — trả lời ẩu là thầy bắt làm lại đấy.' };
     }
     return {
       npcName: npc.npcName,
-      greeting: 'Con đã học xong cả 6 bài vỡ lòng! Giờ hãy ra trường thi, ngồi vào bàn thi và đỗ kỳ thi để thăng cấp từ 学童 lên 童生 nhé.',
+      greeting: lateLine + 'Con đã học xong cả 6 bài vỡ lòng — thầy khen, lần này là khen thật. Giờ thì ra trường thi, ngồi vào bàn thi và đỗ kỳ thi để thăng cấp từ 学童 lên 童生. Đừng để thầy phải chờ lâu.',
       quest: null,
       hint: 'Hãy vào trường thi và thi thăng cấp.'
     };
@@ -735,6 +1028,193 @@ export function blackboardForLesson(lessonId) {
 }
 
 // ---------------------------------------------------------------------------
+// A2 — Giờ học theo lịch (giờ thật của người chơi, giờ địa phương).
+//
+// LÝ DO CHỌN GIỜ: 4 buổi/ngày bám theo nhịp sinh hoạt thường ngày —
+//  sáng sớm 07:00 (trước giờ đi học/đi làm), giữa trưa 12:30 (giờ nghỉ
+//  trưa), tối 20:00 (giờ rảnh chính sau bữa tối), khuya 21:30 (buổi cuối
+//  cho người bận rộn). Các lớp sau lệch +15 phút so với lớp trước để
+//  học trò các trình độ không ùa vào cùng một giờ mà vẫn chung khung
+//  giờ quen thuộc (theo gợi ý mô hình trường Thầy Đồ tham khảo).
+//  Mỗi buổi kéo dài 45 phút — đủ giảng một bài, không quá dài.
+//  LƯU Ý: lệch 15 phút nên các buổi có chồng lấn nhau (ví dụ tối
+//  20:00–23:00 gần như liền mạch); đây là lịch THEO LỚP để học trò
+//  biết giờ lớp mình, chưa phải lịch phân công tiết dạy của thầy —
+//  thầy được coi là "đang dạy" trong toàn bộ khung giờ có lớp.
+//  Lịch KHÔNG chặn học: ngoài giờ học trò vẫn học tự chọn bình thường.
+// ---------------------------------------------------------------------------
+export const CLASS_DURATION_MINUTES = 45;
+
+// sessions: [giờ, phút] theo giờ địa phương của người chơi.
+export const CLASS_SCHEDULE = [
+  {
+    id: 'beginner', name: 'Vỡ lòng',
+    sessions: [[7, 0], [12, 30], [20, 0], [21, 30]],
+    content: 'Bài vỡ lòng 0–5 (Pinyin, thanh điệu, chữ Hán cơ bản)'
+  },
+  {
+    id: 'hsk1', name: 'HSK 1',
+    sessions: [[7, 15], [12, 45], [20, 15], [21, 45]],
+    content: 'Từ vựng HSK 1 — phần khởi đầu trong game (36 từ)'
+  },
+  {
+    id: 'hsk2', name: 'HSK 2',
+    sessions: [[7, 30], [13, 0], [20, 30], [22, 0]],
+    content: 'Ôn tập — nội dung HSK 2 đầy đủ chưa build trong game'
+  },
+  {
+    id: 'hsk3', name: 'HSK 3',
+    sessions: [[7, 45], [13, 15], [20, 45], [22, 15]],
+    content: 'Ôn tập — nội dung HSK 3 đầy đủ chưa build trong game'
+  }
+];
+
+function toDate(now) {
+  if (now instanceof Date && !Number.isNaN(now.getTime())) return now;
+  if (typeof now === 'number' && Number.isFinite(now)) return new Date(now);
+  return new Date();
+}
+
+function sessionStart(cls, slot, baseDate) {
+  const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), slot[0], slot[1], 0, 0);
+  return d;
+}
+
+function formatClock(date) {
+  const h = String(date.getHours()).padStart(2, '0');
+  const m = String(date.getMinutes()).padStart(2, '0');
+  return h + ':' + m;
+}
+
+// Lớp đang diễn ra lúc `now` (giờ địa phương), hoặc null nếu ngoài giờ.
+// Nếu nhiều lớp chồng lấn thì trả lớp bắt đầu gần nhất (vừa vào học).
+export function currentClass(now) {
+  const at = toDate(now);
+  const durationMs = CLASS_DURATION_MINUTES * 60 * 1000;
+  let best = null;
+  for (const cls of CLASS_SCHEDULE) {
+    for (let i = 0; i < cls.sessions.length; i++) {
+      const start = sessionStart(cls, cls.sessions[i], at);
+      const end = new Date(start.getTime() + durationMs);
+      if (at >= start && at < end) {
+        const cand = {
+          class: cls, classId: cls.id, name: cls.name,
+          start, end, sessionIndex: i,
+          minutesIn: Math.floor((at - start) / 60000),
+          minutesLeft: Math.ceil((end - at) / 60000)
+        };
+        if (!best || start > best.start) best = cand;
+      }
+    }
+  }
+  return best;
+}
+
+// Lớp kế tiếp sau `now`: buổi gần nhất hôm nay, nếu hết buổi hôm nay thì
+// buổi đầu tiên ngày mai (isTomorrow = true).
+export function nextClass(now) {
+  const at = toDate(now);
+  let best = null;
+  for (const cls of CLASS_SCHEDULE) {
+    for (let i = 0; i < cls.sessions.length; i++) {
+      const start = sessionStart(cls, cls.sessions[i], at);
+      if (start > at && (!best || start < best.start)) {
+        best = { class: cls, classId: cls.id, name: cls.name, start, sessionIndex: i, isTomorrow: false };
+      }
+    }
+  }
+  if (best) {
+    best.minutesUntil = Math.ceil((best.start - at) / 60000);
+    return best;
+  }
+  const tomorrow = new Date(at.getFullYear(), at.getMonth(), at.getDate() + 1);
+  for (const cls of CLASS_SCHEDULE) {
+    const start = sessionStart(cls, cls.sessions[0], tomorrow);
+    if (!best || start < best.start) {
+      best = { class: cls, classId: cls.id, name: cls.name, start, sessionIndex: 0, isTomorrow: true };
+    }
+  }
+  best.minutesUntil = Math.ceil((best.start - at) / 60000);
+  return best;
+}
+
+// Lớp của học trò theo tiến trình: chưa xong Bài 0–5 thì học lớp Vỡ lòng,
+// xong hết thì lên lớp HSK 1 (HSK 2/3 chưa có nội dung đầy đủ trong game
+// nên chưa xếp lớp cao hơn — giờ HSK 2/3 trong lịch dùng để ôn tập).
+function studentClassId(state) {
+  return lessonIdsDone(state).length >= LESSONS.length ? 'hsk1' : 'beginner';
+}
+
+// Số phút học trò đã vào muộn trong buổi của LỚP MÌNH đang diễn ra
+// (0 nếu ngoài giờ lớp mình). Tính theo lớp của học trò, không theo
+// lớp bắt đầu gần nhất — vì các buổi lệch 15 phút nên chồng lấn nhau,
+// một học trò Vỡ lòng lúc 07:45 là muộn 45 phút dù lớp HSK 3 vừa bắt đầu.
+export function lateMinutes(now, state) {
+  const at = toDate(now);
+  const cls = CLASS_SCHEDULE.find((c) => c.id === studentClassId(state));
+  if (!cls) return 0;
+  const durationMs = CLASS_DURATION_MINUTES * 60 * 1000;
+  for (const slot of cls.sessions) {
+    const start = sessionStart(cls, slot, at);
+    const end = new Date(start.getTime() + durationMs);
+    if (at >= start && at < end) return Math.floor((at - start) / 60000);
+  }
+  return 0;
+}
+
+// Tư thế thầy theo giờ học (A2): trong giờ học thì 'teach', ngoài giờ
+// thì 'read' (tự đọc sách). Cố tình KHÔNG dùng teacherModeFor ở đây:
+// teacherModeFor trả 'walk' khi học xong hết, nhưng theo lịch thì ngoài
+// giờ thầy ngồi đọc sách; 'walk' vẫn còn khi gọi teacherModeFor trực tiếp.
+export function teacherModeNow(now, state, lessonId) {
+  void state; void lessonId;
+  return currentClass(now) ? 'teach' : 'read';
+}
+
+// Chữ ghi lên bảng đen khi đổi buổi học (main.js chỉ gọi khi đổi buổi,
+// không ghi đè liên tục): trong giờ thì ghi bài của lớp đó, ngoài giờ
+// thì ghi 自习 (tự học) để học trò biết thầy đang cho tự học.
+export function scheduleBlackboard(now, state) {
+  const cls = currentClass(now);
+  if (!cls) return { hanzi: '自习', pinyin: 'Zìxí' };
+  if (cls.classId === 'beginner') {
+    const lesson = nextLesson(state);
+    return lesson ? blackboardForLesson(lesson.id) : { hanzi: '你好', pinyin: 'Nǐ hǎo' };
+  }
+  if (cls.classId === 'hsk1') return { hanzi: '学生', pinyin: 'Xuésheng' };
+  return { hanzi: '复习', pinyin: 'Fùxí' }; // HSK 2/3: giờ học dùng để ôn tập
+}
+
+// Mục "Giờ học tới" trong Sổ học tập (nội bộ — renderStudyBook gọi).
+function scheduleSectionHtml(now) {
+  const at = toDate(now);
+  const current = currentClass(at);
+  const next = nextClass(at);
+  let statusHtml;
+  if (current) {
+    statusHtml = '<p><strong>Đang học: lớp ' + escapeHtml(current.name) + '</strong> — còn ' +
+      current.minutesLeft + ' phút (đến ' + formatClock(current.end) + '). Thầy đang giảng trong lớp.</p>';
+  } else if (next) {
+    statusHtml = '<p>Lớp kế tiếp: <strong>' + escapeHtml(next.name) + '</strong> — bắt đầu ' +
+      (next.isTomorrow ? 'ngày mai ' : '') + formatClock(next.start) +
+      ', còn ' + next.minutesUntil + ' phút nữa.</p>';
+  } else {
+    statusHtml = '<p>Chưa có lịch học tiếp theo.</p>';
+  }
+  const tableHtml = '<ul class="study-schedule">' + CLASS_SCHEDULE.map((cls) =>
+    '<li><strong>' + escapeHtml(cls.name) + '</strong> — ' +
+    cls.sessions.map((s) => formatClock(new Date(at.getFullYear(), at.getMonth(), at.getDate(), s[0], s[1]))).join(' · ') +
+    ' (mỗi buổi 45 phút) — ' + escapeHtml(cls.content) + '</li>'
+  ).join('') + '</ul>';
+  return (
+    '<h3>🕰️ Giờ học tới</h3>' +
+    statusHtml +
+    '<p>Ngoài giờ học vẫn học tự chọn bình thường — gặp thầy đồ lúc nào thầy cũng giảng, không phải chờ đúng giờ lên lớp.</p>' +
+    tableHtml
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Spaced repetition đơn giản cho từ vựng.
 //  - Sai >= 2 lần → needsReview = true, nextReview = bây giờ + 1 ngày.
 //  - Ôn đúng (từ đang cần ôn hoặc đã quá hạn) → needsReview = false,
@@ -814,12 +1294,23 @@ function weakLessonFor(hanzi) {
 // ---------------------------------------------------------------------------
 // Sổ học tập — trả về chuỗi HTML
 // ---------------------------------------------------------------------------
-export function renderStudyBook(state) {
+export function renderStudyBook(state, now) {
   const safe = state && typeof state === 'object' ? state : {};
   const completed = Array.isArray(safe.completed) ? safe.completed : [];
   const rank = getRank(safe);
   const reviewWords = getReviewWords(safe);
   const stats = safe.vocabStats && typeof safe.vocabStats === 'object' ? safe.vocabStats : {};
+  // Mục giờ học (A2): giờ thật của người chơi; ngoài giờ vẫn học tự chọn.
+  const scheduleHtml = scheduleSectionHtml(now);
+
+  // Lớp Luyện chữ (A3): nút mở panel luyện viết, main.js nối sự kiện.
+  const callig = safe.calligraphy && typeof safe.calligraphy === 'object' ? safe.calligraphy : {};
+  const calligDone = Object.keys(callig).filter((h) => callig[h] && callig[h].done === true).length;
+  const calligraphyHtml =
+    '<h3>✍️ Lớp Luyện chữ</h3>' +
+    '<p>Ngồi chiếu viết từng chữ, thầy chấm từng nét — đỗ khi đạt 70 điểm trở lên. Đỗ lần đầu một chữ +10 XP, đỗ lại cao điểm hơn +5 XP.' +
+    (calligDone > 0 ? ' Con đã đỗ ' + calligDone + '/16 chữ.' : ' Chưa đỗ chữ nào — mở lớp luyện chữ để bắt đầu với chữ 人 nhé!') + '</p>' +
+    '<p><button type="button" id="btn-calligraphy">✍️ Mở lớp Luyện chữ</button></p>';
 
   const items = QUESTS.map((quest) => {
     const done = completed.includes(quest.id);
@@ -900,6 +1391,32 @@ export function renderStudyBook(state) {
     '<li>HSK ' + l.level + ' — ' + l.words.toLocaleString('vi-VN') + ' từ</li>'
   ).join('') + '</ul>';
 
+  // Kho đồ (giai đoạn B — Phố Hoa): món gọi được ở sạp hoa quả, quán trà,
+  // quán mì. Tiến độ thực đơn suy ra từ kho đồ (đủ 3 món của một quán =
+  // đã thưởng thức hết thực đơn).
+  const inventory = safe.inventory && typeof safe.inventory === 'object' && !Array.isArray(safe.inventory)
+    ? safe.inventory
+    : {};
+  const inventoryIds = Object.keys(inventory).filter((id) => typeof inventory[id] === 'number' && inventory[id] > 0);
+  const inventoryHtml = inventoryIds.length === 0
+    ? '<p>Kho đồ còn trống — hãy ghé sạp hoa quả, quán trà và quán mì, gọi món bằng tiếng Trung để nhận món vào kho đồ nhé.</p>'
+    : '<ul>' + inventoryIds.map((id) => {
+      const item = ORDER_ITEM_BY_ID[id] || null;
+      const count = inventory[id];
+      if (!item) return '<li>' + escapeHtml(id) + ' × ' + count + '</li>';
+      return '<li>' + escapeHtml(item.hanzi) + ' (' + escapeHtml(item.pinyin) + ') — ' + escapeHtml(item.meaning) + ' × ' + count + ' <small>(' + escapeHtml(item.shopName) + ')</small></li>';
+    }).join('') + '</ul>';
+  const shopProgressHtml = '<ul>' + ORDER_SHOPS.map((shop) => {
+    const p = shopOrderProgress(shop.shopId, safe);
+    const orderedNames = p.orderedIds.map((id) => {
+      const it = ORDER_ITEM_BY_ID[id];
+      return it ? it.hanzi : id;
+    }).join(', ');
+    return '<li>' + escapeHtml(shop.shopName) + ': đã gọi ' + p.ordered + '/' + p.total + ' món' +
+      (orderedNames ? ' (' + escapeHtml(orderedNames) + ')' : '') +
+      (p.complete ? ' — ✅ Đã thưởng thức hết thực đơn!' : '') + '</li>';
+  }).join('') + '</ul>';
+
   return (
     '<section class="study-book">' +
     '<h2>Sổ học tập</h2>' +
@@ -910,10 +1427,16 @@ export function renderStudyBook(state) {
     hskLevelsHtml +
     '<p>Nội dung HSK 1 đang theo đề cương ' + escapeHtml(HSK_VERSION) + ', chưa phải danh sách đầy đủ đã kiểm chứng chuyên môn.</p>' +
     '<p>HSK 6 là mục tiêu năng lực; danh hiệu Trạng nguyên là kết quả Điện thí trong game, hai hệ thống riêng biệt.</p>' +
+    scheduleHtml +
+    calligraphyHtml +
     '<h3>Giáo trình vỡ lòng (tự chọn — gặp thầy đồ để làm bài kiểm tra từng bài)</h3>' +
     lessonItems +
     '<h3>Nhiệm vụ</h3>' +
     items +
+    '<h3>🎒 Kho đồ</h3>' +
+    inventoryHtml +
+    '<h3>Thực đơn Phố Hoa</h3>' +
+    shopProgressHtml +
     '<h3>Từ đã học (' + escapeHtml(HSK_VERSION) + ' — phần khởi đầu, ' + VOCAB_HSK1.length + ' từ trong game)</h3>' +
     learnedHtml +
     '<h3>Từ cần ôn</h3>' +
