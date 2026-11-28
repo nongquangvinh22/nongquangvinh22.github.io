@@ -687,6 +687,15 @@ document.getElementById('btn-study').addEventListener('click', () => {
   document.getElementById('study-content').innerHTML = renderStudyBook(state);
   document.getElementById('study-panel').classList.remove('hidden');
 });
+// Vẽ lại Sổ học tập nếu nó vẫn mở phía dưới (ví dụ sau khi luyện chữ
+// cộng XP: Sổ mở sẵn từ trước sẽ hiển thị XP cũ nếu không vẽ lại — lỗi
+// kiểm thử 28/11: HUD XP 10 nhưng Sổ vẫn ghi XP 0).
+function refreshStudyBook() {
+  const panel = document.getElementById('study-panel');
+  if (panel && !panel.classList.contains('hidden')) {
+    document.getElementById('study-content').innerHTML = renderStudyBook(state);
+  }
+}
 // Nút nghe từng thanh điệu trong Sổ học tập (gameplay.js render ra .tone-btn)
 // và nút mở Lớp Luyện chữ (#btn-calligraphy, js/calligraphy.js).
 document.getElementById('study-content').addEventListener('click', (e) => {
@@ -701,10 +710,12 @@ document.getElementById('study-content').addEventListener('click', (e) => {
             state.xp += xp;
             saveGame(state);
             updateHUD(state);
+            refreshStudyBook();
             showToast('Luyện chữ: +' + xp + ' XP');
           }
         },
-        onSave: () => saveGame(state)
+        onSave: () => saveGame(state),
+        onClose: () => refreshStudyBook()
       });
     } catch (_err) { /* luyện chữ lỗi: không vỡ game */ }
     return;
